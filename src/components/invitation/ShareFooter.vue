@@ -9,7 +9,7 @@ const linkCopied = ref(false)
 
 const copyCurrentUrl = async () => {
   try {
-    const url = window.location.origin + window.location.pathname
+    const url = window.location.href
     await navigator.clipboard.writeText(url)
     linkCopied.value = true
     setTimeout(() => {
@@ -22,7 +22,7 @@ const copyCurrentUrl = async () => {
 
 const shareKakao = () => {
   const kakao = (window as any).Kakao
-  const currentUrl = window.location.origin + window.location.pathname
+  const currentUrl = window.location.href
   const coverImg = photos.value.find(p => p.isCover)?.url || photos.value[0]?.url || ''
   const title = `${weddingInfo.value.groom.name} ♥ ${weddingInfo.value.bride.name} 결혼합니다`
   const description = `${weddingInfo.value.venue.name} ${weddingInfo.value.venue.hall}`
