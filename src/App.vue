@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
+import { RouterView } from 'vue-router'
 </script>
 
 <template>
-  <HelloWorld />
+  <RouterView />
 </template>
+
+<style>
+/* Global styles are loaded from style.css */
+</style>
