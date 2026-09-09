@@ -78,19 +78,19 @@ export const DEFAULT_PHOTOS: PhotoItem[] = [
 export const DEFAULT_WEDDING_INFO: WeddingInfo = {
   groom: {
     name: '경주원',
-    phone: '010-1234-5678',
+    phone: '010-6398-5170',
     relationRole: '장남',
-    fatherName: '경철수',
-    motherName: '이영희',
+    fatherName: '경대수',
+    motherName: '차은숙',
     isFatherDeceased: false,
     isMotherDeceased: false
   },
   bride: {
     name: '양예진',
-    phone: '010-9876-5432',
+    phone: '010-5093-0643',
     relationRole: '장녀',
-    fatherName: '양민수',
-    motherName: '최은경',
+    fatherName: '양승훈',
+    motherName: '조혜연',
     isFatherDeceased: false,
     isMotherDeceased: false
   },
@@ -109,7 +109,7 @@ export const DEFAULT_WEDDING_INFO: WeddingInfo = {
   },
   greeting: {
     title: '소중한 분들을 초대합니다',
-    content: `서로 마주 보며 키워온 사랑을\n이제 같은 곳을 바라보며 걸어가고자 합니다.\n\n저희 두 사람이 사랑과 믿음으로\n새로운 시작의 첫걸음을 내딛는 자리에\n귀한 걸음으로 축복해 주시면\n더없는 기쁨으로 간직하겠습니다.`,
+    content: `무채색 같던 일상 속에서 매일을 기대와 따뜻함으로 채워준 사람을 만났습니다.\n서로를 길이 배려하고 이해하며 매일 아침과 저녁을 함께 맞이하는 소소한 행복을 평생 지켜가겠습니다.\n저희 두 사람의 새로운 시작을 따뜻한 마음으로 축복해 주시면 감사하겠습니다`,
     subQuote: '서로의 계절이 되어 영원히 피어나겠습니다'
   },
   bgmUrl: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=romantic-piano-112199.mp3',
@@ -123,35 +123,35 @@ export const DEFAULT_ACCOUNTS: AccountItem[] = [
     id: 'acc-groom',
     side: 'groom',
     title: '신랑 경주원',
-    bankName: '국민은행',
-    accountNumber: '123-456-789012',
+    bankName: '우리은행',
+    accountNumber: '1002-080-051790',
     accountHolder: '경주원',
     kakaoPayUrl: 'https://qr.kakaopay.com/Ej1234567'
   },
   {
     id: 'acc-groom-father',
     side: 'groomParents',
-    title: '신랑 혼주 (부) 경철수',
-    bankName: '신한은행',
+    title: '신랑 혼주 (부) 경대수',
+    bankName: 'ㅇㅇ은행',
     accountNumber: '110-123-456789',
-    accountHolder: '경철수'
+    accountHolder: '경대수'
   },
   {
     id: 'acc-bride',
     side: 'bride',
     title: '신부 양예진',
-    bankName: '카카오뱅크',
-    accountNumber: '3333-01-2345678',
+    bankName: '우리은행',
+    accountNumber: '1002-654-600692',
     accountHolder: '양예진',
     kakaoPayUrl: 'https://qr.kakaopay.com/Ej7654321'
   },
   {
     id: 'acc-bride-mother',
     side: 'brideParents',
-    title: '신부 혼주 (모) 최은경',
+    title: '신부 혼주 (모) 조혜연',
     bankName: '우리은행',
     accountNumber: '1002-123-456789',
-    accountHolder: '최은경'
+    accountHolder: '조혜연'
   }
 ]
 
@@ -180,7 +180,7 @@ export const DEFAULT_GUESTBOOK: GuestbookItem[] = [
 ]
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
-  adminPin: '1234',
+  adminPin: 'yyjkjw0809',
   useFirebase: false
 }
 
