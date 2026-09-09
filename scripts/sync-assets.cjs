@@ -15,3 +15,4 @@ if (fs.existsSync(distAssets)) {
     console.log(`Synced ${file} to assets/`)
   }
 }
+
