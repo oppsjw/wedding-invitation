@@ -77,35 +77,35 @@ export const DEFAULT_PHOTOS: PhotoItem[] = [
 
 export const DEFAULT_WEDDING_INFO: WeddingInfo = {
   groom: {
-    name: '김지우',
+    name: '경주원',
     phone: '010-1234-5678',
     relationRole: '장남',
-    fatherName: '김철수',
+    fatherName: '경철수',
     motherName: '이영희',
     isFatherDeceased: false,
     isMotherDeceased: false
   },
   bride: {
-    name: '박서연',
+    name: '양예진',
     phone: '010-9876-5432',
     relationRole: '장녀',
-    fatherName: '박민수',
+    fatherName: '양민수',
     motherName: '최은경',
     isFatherDeceased: false,
     isMotherDeceased: false
   },
-  date: '2026-10-24T12:30:00',
+  date: '2026-12-12T18:00:00',
   venue: {
-    name: '그랜드 힐 컨벤션',
-    hall: '3층 그랜드볼룸홀',
-    address: '서울특별시 강남구 역삼로 607',
-    addressDetail: '삼성역 1번 출구 도보 5분',
-    tel: '02-555-1234',
-    mapLat: 37.5085,
-    mapLng: 127.0628,
+    name: '서울상록회관',
+    hall: '상록아트홀',
+    address: '서울특별시 강남구 언주로 508',
+    addressDetail: '선릉역 5번 출구 도보 5분',
+    tel: '02-560-2222',
+    mapLat: 37.5041,
+    mapLng: 127.0428,
     parkingInfo: '건물 내 지하 2~4층 무료 주차 (2시간 무료 지원)',
-    subwayInfo: '2호선 삼성역 1번 출구에서 도보 5분 거리 (셔틀버스 수시 운행)',
-    busInfo: '간선 146, 333, 341, 360 / 지선 2415, 3217, 3411'
+    subwayInfo: '2호선 / 수인분당선 선릉역 5번 출구에서 도보 5분 거리 (셔틀버스 운행)',
+    busInfo: '간선 141, 242, 360 / 지선 3422, 4434'
   },
   greeting: {
     title: '소중한 분들을 초대합니다',
@@ -122,27 +122,27 @@ export const DEFAULT_ACCOUNTS: AccountItem[] = [
   {
     id: 'acc-groom',
     side: 'groom',
-    title: '신랑 김지우',
+    title: '신랑 경주원',
     bankName: '국민은행',
     accountNumber: '123-456-789012',
-    accountHolder: '김지우',
+    accountHolder: '경주원',
     kakaoPayUrl: 'https://qr.kakaopay.com/Ej1234567'
   },
   {
     id: 'acc-groom-father',
     side: 'groomParents',
-    title: '신랑 혼주 (부) 김철수',
+    title: '신랑 혼주 (부) 경철수',
     bankName: '신한은행',
     accountNumber: '110-123-456789',
-    accountHolder: '김철수'
+    accountHolder: '경철수'
   },
   {
     id: 'acc-bride',
     side: 'bride',
-    title: '신부 박서연',
+    title: '신부 양예진',
     bankName: '카카오뱅크',
     accountNumber: '3333-01-2345678',
-    accountHolder: '박서연',
+    accountHolder: '양예진',
     kakaoPayUrl: 'https://qr.kakaopay.com/Ej7654321'
   },
   {
@@ -158,8 +158,8 @@ export const DEFAULT_ACCOUNTS: AccountItem[] = [
 export const DEFAULT_GUESTBOOK: GuestbookItem[] = [
   {
     id: 'gb-1',
-    author: '이민호',
-    message: '지우야, 서연씨 결혼 진심으로 축하해! 늘 지금처럼 행복하게 살아라~ 🎉',
+    author: '친구',
+    message: '주원아, 예진씨 결혼 진심으로 축하해! 늘 지금처럼 예쁘게 행복하게 살아라~ 🎉',
     password: '12',
     createdAt: '2026-09-02T14:20:00.000Z'
   },
