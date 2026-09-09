@@ -22,16 +22,13 @@
 
     <!-- Theme Color -->
     <meta name="theme-color" content="#FAF7F2" />
-    <link rel="stylesheet" crossorigin href="./assets/index-CDjMTMiQ.css">
+
+    <!-- Production CSS -->
+    <link rel="stylesheet" crossorigin href="./assets/style.css" />
   </head>
   <body>
     <div id="app"></div>
-    <script type="module">
-      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-        import('/src/main.ts')
-      } else {
-        import('./assets/index-ClUJKwaE.js')
-      }
-    </script>
+    <!-- Production JavaScript Bundle -->
+    <script type="module" src="./assets/app.js"></script>
   </body>
 </html>
