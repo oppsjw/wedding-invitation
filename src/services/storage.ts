@@ -10,12 +10,12 @@ import {
 import { initFirebase, uploadToFirebaseStorage } from './firebase'
 
 const STORAGE_KEYS = {
-  PHOTOS: 'wedding_photos_v1',
-  INFO: 'wedding_info_v1',
-  ACCOUNTS: 'wedding_accounts_v1',
+  PHOTOS: 'wedding_photos_v2',
+  INFO: 'wedding_info_v2',
+  ACCOUNTS: 'wedding_accounts_v2',
   RSVP: 'wedding_rsvp_v1',
   GUESTBOOK: 'wedding_guestbook_v1',
-  SETTINGS: 'wedding_admin_settings_v1'
+  SETTINGS: 'wedding_admin_settings_v2'
 }
 
 function loadFromStorage<T>(key: string, fallback: T): T {
