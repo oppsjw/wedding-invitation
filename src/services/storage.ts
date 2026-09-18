@@ -163,6 +163,9 @@ export function deletePhotoItem(id: string) {
 export function setCoverPhotoItem(id: string) {
   photos.value.forEach(p => {
     p.isCover = p.id === id
+    if (p.isCover) {
+      p.isHidden = false // 대표 사진은 항상 노출
+    }
   })
 }
 
@@ -170,34 +173,44 @@ export function updatePhotoItem(id: string, updates: Partial<Omit<PhotoItem, 'id
   const photo = photos.value.find(p => p.id === id)
   if (photo) {
     Object.assign(photo, updates)
+    if (photo.isCover) {
+      photo.isHidden = false
+    }
   }
 }
 
 export function togglePhotoVisibility(id: string) {
   const photo = photos.value.find(p => p.id === id)
   if (photo) {
+    // 대표 사진은 숨김 처리할 수 없음
+    if (photo.isCover) {
+      photo.isHidden = false
+      return
+    }
     photo.isHidden = !photo.isHidden
   }
 }
 
 export function reorderPhotos(fromIndex: number, toIndex: number) {
-  if (fromIndex < 0 || fromIndex >= photos.value.length || toIndex < 0 || toIndex >= photos.value.length) return
-  const item = photos.value.splice(fromIndex, 1)[0]
-  photos.value.splice(toIndex, 0, item)
-  photos.value.forEach((p, idx) => {
+  // sortedPhotos와 1:1로 일치하도록 order 기준 정렬본을 복사하여 작업
+  const sorted = [...photos.value].sort((a, b) => a.order - b.order)
+  if (fromIndex < 0 || fromIndex >= sorted.length || toIndex < 0 || toIndex >= sorted.length) return
+  if (fromIndex === toIndex) return
+
+  const [movedItem] = sorted.splice(fromIndex, 1)
+  sorted.splice(toIndex, 0, movedItem)
+
+  sorted.forEach((p, idx) => {
     p.order = idx
   })
+
+  // 완전한 배열 교체로 Vue 반응성 및 로컬스토리지 watcher 트리거
+  photos.value = sorted
 }
 
 export function movePhotoItem(index: number, direction: 'up' | 'down') {
   const targetIndex = direction === 'up' ? index - 1 : index + 1
-  if (targetIndex < 0 || targetIndex >= photos.value.length) return
-  const temp = photos.value[index]
-  photos.value[index] = photos.value[targetIndex]
-  photos.value[targetIndex] = temp
-  photos.value.forEach((p, idx) => {
-    p.order = idx
-  })
+  reorderPhotos(index, targetIndex)
 }
 
 // RSVP operations

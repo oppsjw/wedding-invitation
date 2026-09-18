@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import {
   photos,
   uploadImage,
@@ -46,9 +46,11 @@ const editForm = ref({
 })
 const isReplacingImage = ref(false)
 
-// Drag and Drop State
-const draggedIndex = ref<number | null>(null)
-const dragOverIndex = ref<number | null>(null)
+// Unified Drag State (PC Mouse & Mobile Touch)
+const isDragging = ref(false)
+const dragSourceIndex = ref<number | null>(null)
+const dragTargetIndex = ref<number | null>(null)
+const dragPosition = ref({ x: 0, y: 0 })
 
 const sortedPhotos = computed(() => {
   return [...photos.value].sort((a, b) => a.order - b.order)
@@ -127,6 +129,13 @@ const closeEditModal = () => {
   isReplacingImage.value = false
 }
 
+// 대표 사진으로 지정되면 숨김 설정을 자동으로 해제
+watch(() => editForm.value.isCover, (newCover) => {
+  if (newCover) {
+    editForm.value.isHidden = false
+  }
+})
+
 const handleReplaceFileChange = async (e: Event) => {
   const target = e.target as HTMLInputElement
   if (!target.files || target.files.length === 0) return
@@ -150,53 +159,151 @@ const saveEditModal = () => {
     alert('이미지 주소 또는 사진을 등록해주세요.')
     return
   }
+  const isCoverPhoto = editForm.value.isCover
   updatePhotoItem(editForm.value.id, {
     url: editForm.value.url.trim(),
     caption: editForm.value.caption.trim(),
-    isCover: editForm.value.isCover,
-    isHidden: editForm.value.isHidden
+    isCover: isCoverPhoto,
+    isHidden: isCoverPhoto ? false : editForm.value.isHidden
   })
-  if (editForm.value.isCover) {
+  if (isCoverPhoto) {
     setCoverPhotoItem(editForm.value.id)
   }
   closeEditModal()
 }
 
-// Drag & Drop Reordering Handlers
-const handleDragStart = (index: number, e: DragEvent) => {
-  draggedIndex.value = index
-  if (e.dataTransfer) {
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', String(index))
+// PC Mouse Drag Handlers
+let cleanupMouseMove: (() => void) | null = null
+
+const handleMouseDown = (index: number, e: MouseEvent) => {
+  if (e.button !== 0) return
+  const target = e.target as HTMLElement
+  if (target?.closest('button, input, textarea, a')) return
+
+  const startX = e.clientX
+  const startY = e.clientY
+  let hasMoved = false
+
+  const onMouseMove = (moveEvent: MouseEvent) => {
+    const dx = moveEvent.clientX - startX
+    const dy = moveEvent.clientY - startY
+    // 4px 이상 이동했을 때만 드래그 시작 (단순 클릭과 드래그 구분)
+    if (!hasMoved && Math.hypot(dx, dy) < 4) {
+      return
+    }
+    if (!hasMoved) {
+      hasMoved = true
+      isDragging.value = true
+      dragSourceIndex.value = index
+      dragTargetIndex.value = index
+      document.body.style.userSelect = 'none'
+      document.body.style.cursor = 'grabbing'
+    }
+
+    dragPosition.value = { x: moveEvent.clientX, y: moveEvent.clientY }
+
+    const el = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)
+    const card = el?.closest('.photo-card') as HTMLElement | null
+    if (card && card.dataset.index !== undefined) {
+      const idx = parseInt(card.dataset.index, 10)
+      if (!isNaN(idx) && idx >= 0 && idx < sortedPhotos.value.length) {
+        dragTargetIndex.value = idx
+      }
+    }
+  }
+
+  const onMouseUp = () => {
+    window.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('mouseup', onMouseUp)
+    cleanupMouseMove = null
+    document.body.style.userSelect = ''
+    document.body.style.cursor = ''
+
+    if (isDragging.value && dragSourceIndex.value !== null && dragTargetIndex.value !== null) {
+      if (dragSourceIndex.value !== dragTargetIndex.value) {
+        reorderPhotos(dragSourceIndex.value, dragTargetIndex.value)
+      }
+    }
+
+    isDragging.value = false
+    dragSourceIndex.value = null
+    dragTargetIndex.value = null
+  }
+
+  cleanupMouseMove = () => {
+    window.removeEventListener('mousemove', onMouseMove)
+    window.removeEventListener('mouseup', onMouseUp)
+    document.body.style.userSelect = ''
+    document.body.style.cursor = ''
+  }
+
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup', onMouseUp)
+}
+
+// Mobile Touch Drag Handlers
+const handleTouchMove = (e: TouchEvent) => {
+  if (!isDragging.value || dragSourceIndex.value === null) return
+  if (e.cancelable) {
+    e.preventDefault() // 터치 드래그 중 브라우저 페이지 스크롤 방지
+  }
+  const touch = e.touches[0]
+  dragPosition.value = { x: touch.clientX, y: touch.clientY }
+
+  const el = document.elementFromPoint(touch.clientX, touch.clientY)
+  const card = el?.closest('.photo-card') as HTMLElement | null
+  if (card && card.dataset.index !== undefined) {
+    const idx = parseInt(card.dataset.index, 10)
+    if (!isNaN(idx) && idx >= 0 && idx < sortedPhotos.value.length) {
+      dragTargetIndex.value = idx
+    }
   }
 }
 
-const handleDragOver = (e: DragEvent, index: number) => {
-  e.preventDefault()
-  if (e.dataTransfer) {
-    e.dataTransfer.dropEffect = 'move'
+const handleTouchEnd = () => {
+  window.removeEventListener('touchmove', handleTouchMove)
+  window.removeEventListener('touchend', handleTouchEnd)
+  window.removeEventListener('touchcancel', handleTouchCancel)
+
+  if (isDragging.value && dragSourceIndex.value !== null && dragTargetIndex.value !== null) {
+    if (dragSourceIndex.value !== dragTargetIndex.value) {
+      reorderPhotos(dragSourceIndex.value, dragTargetIndex.value)
+    }
   }
-  dragOverIndex.value = index
+  isDragging.value = false
+  dragSourceIndex.value = null
+  dragTargetIndex.value = null
 }
 
-const handleDragLeave = (index: number) => {
-  if (dragOverIndex.value === index) {
-    dragOverIndex.value = null
-  }
+const handleTouchCancel = () => {
+  window.removeEventListener('touchmove', handleTouchMove)
+  window.removeEventListener('touchend', handleTouchEnd)
+  window.removeEventListener('touchcancel', handleTouchCancel)
+
+  isDragging.value = false
+  dragSourceIndex.value = null
+  dragTargetIndex.value = null
 }
 
-const handleDrop = (targetIndex: number) => {
-  if (draggedIndex.value !== null && draggedIndex.value !== targetIndex) {
-    reorderPhotos(draggedIndex.value, targetIndex)
-  }
-  draggedIndex.value = null
-  dragOverIndex.value = null
+const handleTouchStart = (index: number, e: TouchEvent) => {
+  if (e.touches.length !== 1) return
+  const touch = e.touches[0]
+  dragSourceIndex.value = index
+  dragTargetIndex.value = index
+  dragPosition.value = { x: touch.clientX, y: touch.clientY }
+  isDragging.value = true
+
+  window.addEventListener('touchmove', handleTouchMove, { passive: false })
+  window.addEventListener('touchend', handleTouchEnd)
+  window.addEventListener('touchcancel', handleTouchCancel)
 }
 
-const handleDragEnd = () => {
-  draggedIndex.value = null
-  dragOverIndex.value = null
-}
+onUnmounted(() => {
+  if (cleanupMouseMove) cleanupMouseMove()
+  window.removeEventListener('touchmove', handleTouchMove)
+  window.removeEventListener('touchend', handleTouchEnd)
+  window.removeEventListener('touchcancel', handleTouchCancel)
+})
 </script>
 
 <template>
@@ -275,29 +382,47 @@ const handleDragEnd = () => {
     </div>
 
     <!-- 3x3 Photo Grid with Drag and Drop -->
-    <div class="photo-grid">
+    <div
+      class="photo-grid"
+      :class="{ 'is-dragging-active': isDragging }"
+    >
       <div
         v-for="(photo, index) in sortedPhotos"
         :key="photo.id"
+        :data-index="index"
         class="photo-card"
         :class="{
           'is-cover': photo.isCover,
           'is-hidden': photo.isHidden,
-          'is-dragging': draggedIndex === index,
-          'is-drag-over': dragOverIndex === index && draggedIndex !== index
+          'is-dragging': isDragging && dragSourceIndex === index,
+          'is-drag-over': isDragging && dragTargetIndex === index && dragSourceIndex !== index
         }"
-        draggable="true"
-        @dragstart="handleDragStart(index, $event)"
-        @dragover="handleDragOver($event, index)"
-        @dragleave="handleDragLeave(index)"
-        @drop="handleDrop(index)"
-        @dragend="handleDragEnd"
+        @mousedown="handleMouseDown(index, $event)"
       >
+        <!-- Drop Target Visual Indicator -->
+        <div
+          v-if="isDragging && dragTargetIndex === index && dragSourceIndex !== index"
+          class="drop-target-indicator"
+        >
+          <span>여기로 이동</span>
+        </div>
+
         <!-- Drag Handle & Badges -->
         <div class="photo-thumb-wrap">
-          <img :src="photo.url" :alt="photo.caption || '웨딩 사진'" class="photo-thumb" />
+          <img
+            :src="photo.url"
+            :alt="photo.caption || '웨딩 사진'"
+            class="photo-thumb"
+            draggable="false"
+          />
 
-          <div class="drag-handle-pill font-sans" title="마우스로 끌어서 순서 변경">
+          <!-- Drag Handle Pill (Supports Touch on mobile & Mouse drag on PC) -->
+          <div
+            class="drag-handle-pill font-sans"
+            title="마우스 또는 터치로 끌어서 순서 변경"
+            @mousedown.stop="handleMouseDown(index, $event)"
+            @touchstart.stop="handleTouchStart(index, $event)"
+          >
             <GripVertical :size="13" />
             <span>{{ index + 1 }}</span>
           </div>
@@ -320,7 +445,9 @@ const handleDragEnd = () => {
               <Edit3 :size="14" />
               <span>수정</span>
             </button>
+            <!-- 대표 사진은 숨김 불가 -->
             <button
+              v-if="!photo.isCover"
               class="overlay-btn toggle-btn"
               @click="togglePhotoVisibility(photo.id)"
               :title="photo.isHidden ? '청첩장에 노출하기' : '청첩장에서 숨기기'"
@@ -329,6 +456,14 @@ const handleDragEnd = () => {
               <EyeOff v-else :size="14" />
               <span>{{ photo.isHidden ? '보이기' : '숨기기' }}</span>
             </button>
+            <div
+              v-else
+              class="overlay-btn disabled-btn"
+              title="대표 사진은 메인 표지에 항상 노출됩니다"
+            >
+              <Eye :size="14" />
+              <span>대표 노출</span>
+            </div>
             <button class="overlay-btn delete-btn" @click="handleDelete(photo.id)" title="사진 삭제">
               <Trash2 :size="14" />
             </button>
@@ -343,7 +478,9 @@ const handleDragEnd = () => {
           </div>
 
           <div class="card-bottom-actions">
+            <!-- 대표 사진은 항상 노출 고정 -->
             <button
+              v-if="!photo.isCover"
               class="visibility-pill-btn"
               :class="{ 'is-hidden-state': photo.isHidden }"
               @click="togglePhotoVisibility(photo.id)"
@@ -353,6 +490,14 @@ const handleDragEnd = () => {
               <Eye v-else :size="12" />
               <span>{{ photo.isHidden ? '숨김됨' : '보이기' }}</span>
             </button>
+            <span
+              v-else
+              class="visibility-pill-btn is-cover-fixed"
+              title="대표 사진은 메인 표지에 사용되므로 항상 노출됩니다"
+            >
+              <Eye :size="12" />
+              <span>항상 노출</span>
+            </span>
 
             <div class="card-action-group">
               <button
@@ -376,6 +521,18 @@ const handleDragEnd = () => {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Floating Ghost during Drag (PC Mouse & Mobile Touch) -->
+    <div
+      v-if="isDragging && dragSourceIndex !== null"
+      class="drag-ghost"
+      :style="{
+        transform: `translate3d(${dragPosition.x - 70}px, ${dragPosition.y - 45}px, 0)`
+      }"
+    >
+      <GripVertical :size="14" />
+      <span>{{ dragSourceIndex + 1 }}번 사진 이동 중</span>
     </div>
 
     <!-- Empty State -->
@@ -460,16 +617,20 @@ const handleDragEnd = () => {
           </div>
 
           <div class="form-group checkbox-group">
-            <label class="checkbox-label">
+            <label class="checkbox-label" :class="{ 'disabled-checkbox': editForm.isCover }">
               <input
                 v-model="editForm.isHidden"
                 type="checkbox"
                 class="checkbox-input"
+                :disabled="editForm.isCover"
               />
               <span :class="{ 'text-danger': editForm.isHidden }">
                 이 사진을 청첩장에서 숨기기 (비노출)
               </span>
             </label>
+            <p v-if="editForm.isCover" class="helper-text cover-hint">
+              * 대표 사진은 메인 표지에 표시되므로 숨길 수 없습니다.
+            </p>
           </div>
         </div>
 
@@ -629,6 +790,12 @@ const handleDragEnd = () => {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
+  position: relative;
+}
+
+/* 드래그 중 자식 요소들이 이벤트를 가로채거나 깜빡임을 유발하지 않도록 격리 */
+.photo-grid.is-dragging-active .photo-card * {
+  pointer-events: none !important;
 }
 
 @media (max-width: 768px) {
@@ -646,6 +813,7 @@ const handleDragEnd = () => {
 }
 
 .photo-card {
+  position: relative;
   background: #FFFFFF;
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -653,9 +821,10 @@ const handleDragEnd = () => {
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow-sm);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
   cursor: grab;
   user-select: none;
+  -webkit-user-select: none;
 }
 
 .photo-card:active {
@@ -674,14 +843,38 @@ const handleDragEnd = () => {
 }
 
 .photo-card.is-dragging {
-  opacity: 0.4;
-  transform: scale(0.96);
+  opacity: 0.35;
 }
 
 .photo-card.is-drag-over {
   border: 2px dashed var(--gold-primary);
-  background: var(--gold-soft);
-  transform: scale(1.02);
+  background: #FDF9F3;
+}
+
+/* 드롭 대상 위치 안내 오버레이 */
+.drop-target-indicator {
+  position: absolute;
+  inset: 0;
+  background: rgba(184, 153, 107, 0.2);
+  border: 2px dashed var(--gold-primary);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: none;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.drop-target-indicator span {
+  background: var(--gold-primary);
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  letter-spacing: -0.2px;
 }
 
 .photo-thumb-wrap {
@@ -697,6 +890,9 @@ const handleDragEnd = () => {
   height: 100%;
   object-fit: cover;
   transition: transform 0.3s ease;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .photo-card:hover .photo-thumb {
@@ -707,18 +903,28 @@ const handleDragEnd = () => {
   position: absolute;
   top: 8px;
   left: 8px;
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(4px);
   color: #FFFFFF;
-  padding: 3px 8px;
+  padding: 4px 9px;
   border-radius: 12px;
   font-size: 11px;
   font-weight: 600;
   display: flex;
   align-items: center;
   gap: 3px;
-  z-index: 2;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  z-index: 5;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.drag-handle-pill:active {
+  cursor: grabbing;
+  background: var(--gold-primary);
 }
 
 .cover-badge {
@@ -798,6 +1004,18 @@ const handleDragEnd = () => {
   transform: translateY(-1px);
 }
 
+.overlay-btn.disabled-btn {
+  background: rgba(245, 240, 230, 0.95);
+  color: var(--gold-dark);
+  cursor: default;
+  box-shadow: none;
+}
+
+.overlay-btn.disabled-btn:hover {
+  background: rgba(245, 240, 230, 0.95);
+  transform: none;
+}
+
 .overlay-btn.delete-btn {
   color: var(--rose-accent);
   padding: 6px 8px;
@@ -868,6 +1086,18 @@ const handleDragEnd = () => {
   border-color: #F5C6CB;
 }
 
+.visibility-pill-btn.is-cover-fixed {
+  background: #F4EFE6;
+  color: var(--gold-dark);
+  border-color: var(--gold-light);
+  cursor: default;
+  opacity: 0.95;
+}
+
+.visibility-pill-btn.is-cover-fixed:hover {
+  filter: none;
+}
+
 .card-action-group {
   display: flex;
   align-items: center;
@@ -921,6 +1151,29 @@ const handleDragEnd = () => {
   background: var(--gold-soft);
   border-color: var(--gold-primary);
   color: var(--gold-dark);
+}
+
+/* Drag Ghost Preview (PC Mouse & Mobile Touch) */
+.drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none !important;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 9999;
+  background: rgba(44, 40, 37, 0.92);
+  color: #FFFFFF;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  will-change: transform;
 }
 
 .text-danger {
@@ -1110,6 +1363,22 @@ const handleDragEnd = () => {
   width: 16px;
   height: 16px;
   cursor: pointer;
+}
+
+.disabled-checkbox {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+}
+
+.disabled-checkbox .checkbox-input {
+  cursor: not-allowed !important;
+}
+
+.cover-hint {
+  color: var(--gold-dark);
+  font-size: 11px;
+  margin-top: 4px;
+  margin-left: 24px;
 }
 
 .modal-footer {
