@@ -8,8 +8,15 @@ import {
   setCoverPhotoItem,
   updatePhotoItem,
   reorderPhotos,
-  togglePhotoVisibility
+  togglePhotoVisibility,
+  syncPhotosFromFirebaseStorage,
+  adminSettings
 } from '../../services/storage'
+import {
+  isFirebaseStorageReady,
+  getStorageBucketName,
+  initFirebase
+} from '../../services/firebase'
 import type { PhotoItem } from '../../types/wedding'
 import {
   UploadCloud,
@@ -23,7 +30,10 @@ import {
   GripVertical,
   RefreshCw,
   Eye,
-  EyeOff
+  EyeOff,
+  Cloud,
+  Settings,
+  AlertCircle
 } from 'lucide-vue-next'
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -33,6 +43,88 @@ const uploadProgressText = ref('')
 const urlInput = ref('')
 const urlCaption = ref('')
 const showUrlModal = ref(false)
+
+// Firebase State & Modal
+const isFirebaseReady = ref(isFirebaseStorageReady())
+const storageBucket = computed(() => getStorageBucketName() || adminSettings.value.firebaseConfig?.storageBucket || '')
+const isSyncing = ref(false)
+const showFirebaseModal = ref(false)
+
+const firebaseForm = ref({
+  apiKey: adminSettings.value.firebaseConfig?.apiKey || '',
+  projectId: adminSettings.value.firebaseConfig?.projectId || '',
+  storageBucket: adminSettings.value.firebaseConfig?.storageBucket || '',
+  appId: adminSettings.value.firebaseConfig?.appId || ''
+})
+
+const checkFirebaseStatus = () => {
+  isFirebaseReady.value = isFirebaseStorageReady()
+}
+
+const openFirebaseModal = () => {
+  firebaseForm.value = {
+    apiKey: adminSettings.value.firebaseConfig?.apiKey || '',
+    projectId: adminSettings.value.firebaseConfig?.projectId || '',
+    storageBucket: adminSettings.value.firebaseConfig?.storageBucket || '',
+    appId: adminSettings.value.firebaseConfig?.appId || ''
+  }
+  showFirebaseModal.value = true
+}
+
+const saveFirebaseConfig = () => {
+  if (!firebaseForm.value.apiKey.trim() || !firebaseForm.value.projectId.trim()) {
+    alert('API Key와 Project ID를 모두 입력해주세요.')
+    return
+  }
+
+  if (!adminSettings.value.firebaseConfig) {
+    adminSettings.value.firebaseConfig = {
+      apiKey: '',
+      authDomain: '',
+      projectId: '',
+      storageBucket: '',
+      messagingSenderId: '',
+      appId: ''
+    }
+  }
+
+  const pId = firebaseForm.value.projectId.trim()
+  adminSettings.value.firebaseConfig.apiKey = firebaseForm.value.apiKey.trim()
+  adminSettings.value.firebaseConfig.projectId = pId
+  adminSettings.value.firebaseConfig.storageBucket = firebaseForm.value.storageBucket.trim() || `${pId}.firebasestorage.app`
+  adminSettings.value.firebaseConfig.authDomain = `${pId}.firebaseapp.com`
+  adminSettings.value.firebaseConfig.appId = firebaseForm.value.appId.trim()
+  adminSettings.value.useFirebase = true
+
+  initFirebase(adminSettings.value.firebaseConfig)
+  checkFirebaseStatus()
+
+  showFirebaseModal.value = false
+  alert('Firebase Storage 설정이 저장되고 연동되었습니다!')
+}
+
+const handleSyncFromFirebase = async () => {
+  checkFirebaseStatus()
+  if (!isFirebaseReady.value) {
+    openFirebaseModal()
+    return
+  }
+
+  isSyncing.value = true
+  try {
+    const count = await syncPhotosFromFirebaseStorage()
+    if (count > 0) {
+      alert(`Firebase Storage에서 ${count}장의 새로운 사진을 가져왔습니다.`)
+    } else {
+      alert('Firebase Storage에 저장된 모든 사진이 이미 불러와져 있습니다.')
+    }
+  } catch (err: any) {
+    console.error('Firebase sync error:', err)
+    alert(`사진을 불러오는 중 오류가 발생했습니다: ${err.message || err}`)
+  } finally {
+    isSyncing.value = false
+  }
+}
 
 // Edit Modal State
 const isEditModalOpen = ref(false)
@@ -64,23 +156,33 @@ const handleFileChange = async (e: Event) => {
   const target = e.target as HTMLInputElement
   if (!target.files || target.files.length === 0) return
 
+  checkFirebaseStatus()
+  if (!isFirebaseReady.value) {
+    openFirebaseModal()
+    alert('사진을 Firebase Storage에 저장하기 위해 먼저 Firebase 연동 설정을 완료해주세요.')
+    if (fileInputRef.value) fileInputRef.value.value = ''
+    return
+  }
+
   const files = Array.from(target.files)
   isUploading.value = true
 
   try {
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
-      uploadProgressText.value = `사진 업로드 중 (${i + 1}/${files.length}): ${file.name}`
-      const url = await uploadImage(file)
+      uploadProgressText.value = `Firebase Storage 업로드 중 (${i + 1}/${files.length}): ${file.name}`
+      const url = await uploadImage(file, (percent) => {
+        uploadProgressText.value = `Firebase Storage 업로드 중 (${i + 1}/${files.length}) - ${percent}%`
+      })
       addPhotoItem({
         url,
         caption: '',
         isCover: photos.value.length === 0
       })
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('File upload error:', err)
-    alert('사진 업로드 중 오류가 발생했습니다.')
+    alert(`사진 업로드 중 오류가 발생했습니다: ${err.message || err}`)
   } finally {
     isUploading.value = false
     uploadProgressText.value = ''
@@ -101,7 +203,7 @@ const handleAddByUrl = () => {
 }
 
 const handleDelete = (id: string) => {
-  if (confirm('이 사진을 정말 삭제하시겠습니까?')) {
+  if (confirm('이 사진을 정말 삭제하시겠습니까? (Firebase Storage 연동 사진인 경우 스토리지에서도 함께 삭제됩니다)')) {
     deletePhotoItem(id)
   }
 }
@@ -140,14 +242,22 @@ const handleReplaceFileChange = async (e: Event) => {
   const target = e.target as HTMLInputElement
   if (!target.files || target.files.length === 0) return
 
+  checkFirebaseStatus()
+  if (!isFirebaseReady.value) {
+    openFirebaseModal()
+    alert('사진을 교체하려면 먼저 Firebase Storage 연동 설정을 완료해주세요.')
+    if (replaceFileInputRef.value) replaceFileInputRef.value.value = ''
+    return
+  }
+
   const file = target.files[0]
   isReplacingImage.value = true
   try {
     const newUrl = await uploadImage(file)
     editForm.value.url = newUrl
-  } catch (err) {
+  } catch (err: any) {
     console.error('Replace image error:', err)
-    alert('사진 교체 중 오류가 발생했습니다.')
+    alert(`사진 교체 중 오류가 발생했습니다: ${err.message || err}`)
   } finally {
     isReplacingImage.value = false
     if (replaceFileInputRef.value) replaceFileInputRef.value.value = ''
@@ -349,6 +459,46 @@ onUnmounted(() => {
           class="hidden-file-input"
           @change="handleFileChange"
         />
+      </div>
+    </div>
+
+    <!-- Firebase Storage Status & Sync Banner -->
+    <div
+      class="firebase-status-banner"
+      :class="{ 'is-connected': isFirebaseReady, 'is-disconnected': !isFirebaseReady }"
+    >
+      <div class="firebase-status-info">
+        <span class="status-indicator-dot" :class="{ 'online': isFirebaseReady, 'offline': !isFirebaseReady }"></span>
+        <span v-if="isFirebaseReady" class="firebase-status-text">
+          <Cloud :size="15" class="status-icon" />
+          <span><strong>Firebase Storage 연동됨</strong> <small v-if="storageBucket">({{ storageBucket }})</small></span>
+        </span>
+        <span v-else class="firebase-status-text">
+          <AlertCircle :size="15" class="status-icon warning" />
+          <span><strong>Firebase Storage 미연동</strong> <small>- 사진을 Cloud Storage에 저장하려면 연동 설정이 필요합니다.</small></span>
+        </span>
+      </div>
+
+      <div class="firebase-banner-actions">
+        <button
+          v-if="isFirebaseReady"
+          class="btn-banner-action sync-btn"
+          @click="handleSyncFromFirebase"
+          :disabled="isSyncing"
+          title="Firebase Storage에 저장된 모든 사진을 불러와 동기화합니다"
+        >
+          <RefreshCw :size="13" :class="{ 'spinning': isSyncing }" />
+          <span>{{ isSyncing ? '사진 동기화 중...' : 'Storage 사진 불러오기' }}</span>
+        </button>
+
+        <button
+          class="btn-banner-action config-btn"
+          @click="openFirebaseModal"
+          :title="isFirebaseReady ? 'Firebase 설정 변경' : 'Firebase Storage 설정 입력'"
+        >
+          <Settings :size="13" />
+          <span>{{ isFirebaseReady ? '연동 설정' : 'Firebase 설정하기' }}</span>
+        </button>
       </div>
     </div>
 
@@ -639,6 +789,75 @@ onUnmounted(() => {
           <button class="btn-primary" @click="saveEditModal">
             <Check :size="14" />
             <span>저장하기</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Firebase Config Modal -->
+    <div v-if="showFirebaseModal" class="modal-backdrop" @click.self="showFirebaseModal = false">
+      <div class="modal-card card-paper">
+        <div class="modal-header">
+          <div class="modal-header-with-icon">
+            <Cloud :size="18" class="header-icon-cloud" />
+            <h4 class="modal-title font-serif">Firebase Storage 연동 설정</h4>
+          </div>
+          <button class="close-btn" @click="showFirebaseModal = false">
+            <X :size="18" />
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <p class="modal-desc-text">
+            Firebase 콘솔(Project Settings)의 웹 앱 구성 정보를 입력하시면, 관리자 페이지에서 올리는 사진이 <strong>Firebase Cloud Storage</strong>에 자동으로 업로드되고 저장된 고화질 이미지를 청첩장에 노출합니다.
+          </p>
+
+          <div class="form-group">
+            <label class="form-label">API Key <span class="required-star">*</span></label>
+            <input
+              v-model="firebaseForm.apiKey"
+              type="text"
+              placeholder="AIzaSy..."
+              class="input-field"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Project ID <span class="required-star">*</span></label>
+            <input
+              v-model="firebaseForm.projectId"
+              type="text"
+              placeholder="my-wedding-project"
+              class="input-field"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Storage Bucket (선택 - 기본값: {projectId}.firebasestorage.app)</label>
+            <input
+              v-model="firebaseForm.storageBucket"
+              type="text"
+              placeholder="my-wedding-project.firebasestorage.app"
+              class="input-field"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">App ID (선택)</label>
+            <input
+              v-model="firebaseForm.appId"
+              type="text"
+              placeholder="1:123456789:web:abcdef..."
+              class="input-field"
+            />
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn-secondary" @click="showFirebaseModal = false">취소</button>
+          <button class="btn-primary" @click="saveFirebaseConfig">
+            <Check :size="14" />
+            <span>연동 저장 및 활성화</span>
           </button>
         </div>
       </div>
@@ -1398,5 +1617,140 @@ onUnmounted(() => {
 @keyframes spinSlow {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Firebase Storage Status Banner */
+.firebase-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  transition: all 0.2s ease;
+}
+
+.firebase-status-banner.is-connected {
+  background: #EBF7EE;
+  border: 1px solid #C3E6CB;
+  color: #1E7E34;
+}
+
+.firebase-status-banner.is-disconnected {
+  background: #FFF9E6;
+  border: 1px solid #FFE082;
+  color: #996500;
+}
+
+.firebase-status-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-indicator-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-indicator-dot.online {
+  background: #28A745;
+  box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.25);
+}
+
+.status-indicator-dot.offline {
+  background: #E67E22;
+  box-shadow: 0 0 0 2px rgba(230, 126, 34, 0.25);
+}
+
+.firebase-status-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.firebase-status-text .status-icon {
+  flex-shrink: 0;
+}
+
+.firebase-status-text .status-icon.warning {
+  color: #E67E22;
+}
+
+.firebase-status-text small {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.firebase-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-banner-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid currentColor;
+  background: #FFFFFF;
+}
+
+.btn-banner-action.sync-btn {
+  color: #1E7E34;
+  border-color: #A3D9B1;
+}
+
+.btn-banner-action.sync-btn:hover:not(:disabled) {
+  background: #E1F5E6;
+}
+
+.btn-banner-action.config-btn {
+  color: var(--text-main);
+  border-color: var(--border-color);
+}
+
+.btn-banner-action.config-btn:hover {
+  background: var(--bg-warm);
+}
+
+.btn-banner-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Modal Enhancements */
+.modal-header-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-icon-cloud {
+  color: var(--gold-primary);
+}
+
+.modal-desc-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-sub);
+  margin-bottom: 6px;
+}
+
+.required-star {
+  color: #E74C3C;
+  font-weight: bold;
 }
 </style>
