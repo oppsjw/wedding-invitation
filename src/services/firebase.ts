@@ -50,6 +50,9 @@ export function initFirebase(config?: FirebaseConfigSetting) {
     }
     db = getFirestore(app)
     storage = getStorage(app)
+    // 10분의 기본 재시도 대기를 15초로 단축하여 무한 대기 현상 방지
+    storage.maxUploadRetryTime = 15000
+    storage.maxOperationRetryTime = 15000
     return { app, db, storage }
   } catch (err) {
     console.warn('Firebase initialization error:', err)
@@ -81,9 +84,9 @@ export async function uploadToFirebaseStorage(
   const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
   const storageRef = ref(storage, `photos/${timestamp}_${cleanName}`)
 
-  if (onProgress) {
-    const uploadTask = uploadBytesResumable(storageRef, file)
-    return new Promise((resolve, reject) => {
+  const uploadPromise = new Promise<string>((resolve, reject) => {
+    if (onProgress) {
+      const uploadTask = uploadBytesResumable(storageRef, file)
       uploadTask.on(
         'state_changed',
         (snapshot) => {
@@ -93,7 +96,6 @@ export async function uploadToFirebaseStorage(
           }
         },
         (error) => {
-          console.error('Firebase Storage upload error:', error)
           reject(error)
         },
         async () => {
@@ -105,11 +107,75 @@ export async function uploadToFirebaseStorage(
           }
         }
       )
-    })
-  } else {
-    const snapshot = await uploadBytes(storageRef, file)
-    const downloadUrl = await getDownloadURL(snapshot.ref)
-    return downloadUrl
+    } else {
+      uploadBytes(storageRef, file)
+        .then(snapshot => getDownloadURL(snapshot.ref))
+        .then(resolve)
+        .catch(reject)
+    }
+  })
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      const projectId = storage?.app.options.projectId || '프로젝트'
+      reject(new Error(`Firebase Storage 연결 시간이 초과되었습니다 (20초).\n\nFirebase 콘솔(https://console.firebase.google.com/project/${projectId}/storage)에서 Storage 버킷이 생성되었는지 확인해주세요.`))
+    }, 20000)
+  })
+
+  try {
+    return await Promise.race([uploadPromise, timeoutPromise])
+  } catch (err: any) {
+    console.error('Firebase Storage upload error detail:', err)
+    const projectId = storage?.app.options.projectId || ''
+    if (err.code === 'storage/unknown' || err.code === 'storage/bucket-not-found' || err.message?.includes('404')) {
+      throw new Error(`Firebase Storage 버킷을 찾을 수 없거나 아직 생성되지 않았습니다.\n\nFirebase 콘솔에서 Storage 메뉴 ➔ [시작하기]를 눌러 버킷을 먼저 생성해주세요.\n👉 https://console.firebase.google.com/project/${projectId}/storage`)
+    } else if (err.code === 'storage/unauthorized' || err.message?.includes('unauthorized') || err.message?.includes('permission')) {
+      throw new Error(`Firebase Storage 접근 권한(Rules)이 없습니다.\n\nFirebase 콘솔 Storage ➔ [Rules] 탭에서 아래와 같이 규칙을 변경하고 [게시]를 눌러주세요:\n\nallow read, write: if true;\n👉 https://console.firebase.google.com/project/${projectId}/storage/rules`)
+    }
+    throw err
+  }
+}
+
+export async function checkStorageBucketStatus(): Promise<{ ok: boolean; message: string; statusCode?: number }> {
+  if (!storage) {
+    initFirebase()
+    if (!storage) {
+      return { ok: false, message: 'Firebase Storage가 초기화되지 않았습니다.' }
+    }
+  }
+
+  const bucket = storage.app.options.storageBucket || ''
+  const projectId = storage.app.options.projectId || ''
+  if (!bucket) {
+    return { ok: false, message: '스토리지 버킷 정보가 비어있습니다.' }
+  }
+
+  try {
+    const res = await fetch(`https://firebasestorage.googleapis.com/v0/b/${bucket}/o?maxResults=1`)
+    if (res.status === 404) {
+      return {
+        ok: false,
+        statusCode: 404,
+        message: `Storage 버킷(${bucket})이 아직 생성되지 않았습니다.\n\nFirebase 콘솔(https://console.firebase.google.com/project/${projectId}/storage)에서 [시작하기]를 눌러 버킷을 생성해주세요.`
+      }
+    }
+    if (res.status === 401 || res.status === 403) {
+      return {
+        ok: true,
+        statusCode: res.status,
+        message: `버킷(${bucket})은 정상 생성되어 있으나 Rules 권한(Rules 탭에서 allow read, write: if true)을 확인해주세요.`
+      }
+    }
+    return {
+      ok: true,
+      statusCode: 200,
+      message: `Firebase Storage 버킷(${bucket})이 정상적으로 연동되었습니다.`
+    }
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: `네트워크 확인 중 오류가 발생했습니다: ${err.message}`
+    }
   }
 }
 
