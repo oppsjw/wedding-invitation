@@ -15,14 +15,6 @@ import ShareFooter from '../components/invitation/ShareFooter.vue'
 let isWheelLocked = false
 let wheelLockTimer: any = null
 
-// Mobile Touch Swipe state
-let touchStartY = 0
-let touchStartX = 0
-let touchStartTime = 0
-let touchStartSectionIndex = 0
-let isTouchLocked = false
-let touchLockTimer: any = null
-
 // Calculate the index of the currently most visible section
 const getCurrentSectionIndex = (sections: HTMLElement[], windowHeight: number): number => {
   let currentIndex = 0
@@ -47,15 +39,15 @@ const scrollToSection = (targetEl: HTMLElement) => {
   const windowHeight = window.innerHeight
   const targetHeight = targetEl.getBoundingClientRect().height
   // On desktop/PC, if the section fits within the viewport, center it; otherwise align to start
-  const isMobile = window.innerWidth <= 768
-  const blockAlign = !isMobile && targetHeight <= windowHeight ? 'center' : 'start'
+  const blockAlign = targetHeight <= windowHeight ? 'center' : 'start'
   targetEl.scrollIntoView({ behavior: 'smooth', block: blockAlign })
 }
 
-// 1. Desktop Mouse Wheel Handler (1 section per wheel scroll on PC)
+// 1. Desktop Mouse Wheel Handler (PC 마우스 휠 전용: 1틱당 1섹션 중앙 이동)
 const handleWheel = (e: WheelEvent) => {
-  // 모달(라이트박스 등)이 열려있거나 스크롤이 잠긴 경우 무시
+  // 터치 기기(모바일/태블릿)이거나 모달이 열려있으면 무시
   if (document.body.style.overflow === 'hidden') return
+  if (window.matchMedia('(pointer: coarse)').matches) return
 
   // 미세 떨림 무시
   if (Math.abs(e.deltaY) < 25) return
@@ -100,88 +92,17 @@ const handleWheel = (e: WheelEvent) => {
   }
 }
 
-// 2. Mobile Touch Swipe Handlers (Touch swipe navigation 1 section at a time)
-const handleTouchStart = (e: TouchEvent) => {
-  if (e.touches.length !== 1) return
-  if (document.body.style.overflow === 'hidden') return
-
-  touchStartY = e.touches[0].clientY
-  touchStartX = e.touches[0].clientX
-  touchStartTime = Date.now()
-
-  const sections = Array.from(document.querySelectorAll<HTMLElement>('.snap-section'))
-  if (sections.length) {
-    const windowHeight = window.innerHeight
-    touchStartSectionIndex = getCurrentSectionIndex(sections, windowHeight)
-  }
-}
-
-const handleTouchEnd = (e: TouchEvent) => {
-  if (isTouchLocked || document.body.style.overflow === 'hidden') return
-  if (!touchStartY) return
-
-  const touchEndY = e.changedTouches[0].clientY
-  const touchEndX = e.changedTouches[0].clientX
-  const deltaY = touchStartY - touchEndY
-  const deltaX = touchStartX - touchEndX
-  const deltaTime = Date.now() - touchStartTime
-
-  // 수평 스와이프(갤러리 라이트박스 넘기기 등)가 더 크면 무시
-  if (Math.abs(deltaX) > Math.abs(deltaY) * 1.2) return
-
-  // 스와이프 판정 (이동 거리 35px 이상 또는 250ms 이내의 25px 이상 빠른 플릭)
-  const isSwipe = Math.abs(deltaY) >= 35 || (Math.abs(deltaY) >= 25 && deltaTime < 250)
-  if (!isSwipe) return
-
-  const sections = Array.from(document.querySelectorAll<HTMLElement>('.snap-section'))
-  if (!sections.length) return
-
-  const windowHeight = window.innerHeight
-  const currentIndex = touchStartSectionIndex
-  const currentRect = sections[currentIndex].getBoundingClientRect()
-
-  // 긴 섹션(갤러리, 지도 등)에서 내부 내용이 아직 남아있으면 일반 스크롤 허용
-  if (deltaY > 0 && currentRect.bottom > windowHeight + 40) {
-    return
-  }
-  if (deltaY < 0 && currentRect.top < -40) {
-    return
-  }
-
-  // 터치 시작 시점(touchStartSectionIndex) 기준 엄격한 1섹션 단위 이동
-  let targetIndex = currentIndex
-  if (deltaY > 0 && currentIndex < sections.length - 1) {
-    targetIndex = currentIndex + 1
-  } else if (deltaY < 0 && currentIndex > 0) {
-    targetIndex = currentIndex - 1
-  }
-
-  if (targetIndex !== currentIndex) {
-    isTouchLocked = true
-    scrollToSection(sections[targetIndex])
-    clearTimeout(touchLockTimer)
-    touchLockTimer = setTimeout(() => {
-      isTouchLocked = false
-    }, 600)
-  }
-}
-
 onMounted(() => {
   document.documentElement.classList.add('snap-mode')
   document.body.classList.add('snap-mode')
   window.addEventListener('wheel', handleWheel, { passive: false })
-  window.addEventListener('touchstart', handleTouchStart, { passive: true })
-  window.addEventListener('touchend', handleTouchEnd, { passive: true })
 })
 
 onUnmounted(() => {
   document.documentElement.classList.remove('snap-mode')
   document.body.classList.remove('snap-mode')
   window.removeEventListener('wheel', handleWheel)
-  window.removeEventListener('touchstart', handleTouchStart)
-  window.removeEventListener('touchend', handleTouchEnd)
   if (wheelLockTimer) clearTimeout(wheelLockTimer)
-  if (touchLockTimer) clearTimeout(touchLockTimer)
 })
 </script>
 
