@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { Home, Heart, Image, MapPin, MessageSquare } from 'lucide-vue-next'
 import BgmPlayer from '../components/invitation/BgmPlayer.vue'
 import CoverSection from '../components/invitation/CoverSection.vue'
 import GreetingSection from '../components/invitation/GreetingSection.vue'
@@ -10,6 +11,48 @@ import AccountSection from '../components/invitation/AccountSection.vue'
 import RsvpSection from '../components/invitation/RsvpSection.vue'
 import GuestbookSection from '../components/invitation/GuestbookSection.vue'
 import ShareFooter from '../components/invitation/ShareFooter.vue'
+
+// --- Bottom Mini Navigation Bar ---
+const navItems = [
+  { label: '홈', icon: Home, sectionIndex: 0 },
+  { label: '모시는글', icon: Heart, sectionIndex: 1 },
+  { label: '갤러리', icon: Image, sectionIndex: 3 },
+  { label: '오시는길', icon: MapPin, sectionIndex: 4 },
+  { label: '방명록', icon: MessageSquare, sectionIndex: 7 }
+]
+
+const currentSectionIndex = ref(0)
+let scrollThrottle: any = null
+
+const updateCurrentSection = () => {
+  const sections = Array.from(document.querySelectorAll<HTMLElement>('.snap-section'))
+  if (!sections.length) return
+  currentSectionIndex.value = getCurrentSectionIndex(sections, window.innerHeight)
+}
+
+const isNavActive = (itemSectionIndex: number) => {
+  if (currentSectionIndex.value === itemSectionIndex) return true
+  if (itemSectionIndex === 1 && currentSectionIndex.value === 2) return true
+  if (itemSectionIndex === 4 && (currentSectionIndex.value === 5 || currentSectionIndex.value === 6)) return true
+  if (itemSectionIndex === 7 && currentSectionIndex.value === 8) return true
+  return false
+}
+
+const navigateTo = (sectionIndex: number) => {
+  const sections = Array.from(document.querySelectorAll<HTMLElement>('.snap-section'))
+  if (sections[sectionIndex]) {
+    scrollToSection(sections[sectionIndex])
+    currentSectionIndex.value = sectionIndex
+  }
+}
+
+const handleScroll = () => {
+  if (scrollThrottle) return
+  scrollThrottle = requestAnimationFrame(() => {
+    updateCurrentSection()
+    scrollThrottle = null
+  })
+}
 
 // Desktop Mouse Wheel state
 let isWheelLocked = false
@@ -96,12 +139,16 @@ onMounted(() => {
   document.documentElement.classList.add('snap-mode')
   document.body.classList.add('snap-mode')
   window.addEventListener('wheel', handleWheel, { passive: false })
+  window.addEventListener('scroll', handleScroll, { passive: true })
+  updateCurrentSection()
 })
 
 onUnmounted(() => {
   document.documentElement.classList.remove('snap-mode')
   document.body.classList.remove('snap-mode')
   window.removeEventListener('wheel', handleWheel)
+  window.removeEventListener('scroll', handleScroll)
+  if (scrollThrottle) cancelAnimationFrame(scrollThrottle)
   if (wheelLockTimer) clearTimeout(wheelLockTimer)
 })
 </script>
@@ -155,6 +202,21 @@ onUnmounted(() => {
     <section class="snap-section">
       <ShareFooter />
     </section>
+
+    <!-- Floating Bottom Mini Navigation Bar -->
+    <nav class="bottom-mini-nav font-sans" aria-label="하단 네비게이션 메뉴">
+      <button
+        v-for="item in navItems"
+        :key="item.label"
+        class="nav-item-btn"
+        :class="{ 'is-active': isNavActive(item.sectionIndex) }"
+        @click="navigateTo(item.sectionIndex)"
+        :aria-label="item.label"
+      >
+        <component :is="item.icon" :size="15" class="nav-icon" />
+        <span class="nav-label">{{ item.label }}</span>
+      </button>
+    </nav>
   </main>
 </template>
 
@@ -182,6 +244,72 @@ onUnmounted(() => {
   width: 100%;
   margin-top: auto;
   margin-bottom: auto;
+}
+
+/* Floating Bottom Mini Navigation Bar */
+.bottom-mini-nav {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 360px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 9999px;
+  border: 1px solid rgba(224, 214, 201, 0.75);
+  box-shadow: 0 4px 20px rgba(45, 41, 38, 0.12), 0 1px 4px rgba(45, 41, 38, 0.06);
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 85;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.nav-item-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  padding: 5px 2px;
+  border-radius: 9999px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+}
+
+.nav-icon {
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.nav-label {
+  font-size: 10px;
+  letter-spacing: -0.2px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.nav-item-btn:hover {
+  color: var(--text-main);
+}
+
+.nav-item-btn.is-active {
+  color: var(--gold-dark);
+  background: rgba(168, 131, 80, 0.1);
+}
+
+.nav-item-btn.is-active .nav-icon {
+  transform: scale(1.1);
+}
+
+.nav-item-btn.is-active .nav-label {
+  font-weight: 700;
 }
 
 /* Mobile responsive adjustments */

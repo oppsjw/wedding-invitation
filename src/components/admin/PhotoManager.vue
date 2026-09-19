@@ -553,8 +553,9 @@ onUnmounted(() => {
         <div
           v-if="isDragging && dragTargetIndex === index && dragSourceIndex !== index"
           class="drop-target-indicator"
+          :class="{ 'is-target-cover': index === 0 }"
         >
-          <span>여기로 이동</span>
+          <span>{{ index === 0 ? '★ 대표 사진으로 지정' : '여기로 이동' }}</span>
         </div>
 
         <!-- Drag Handle & Badges -->
@@ -612,7 +613,7 @@ onUnmounted(() => {
               title="대표 사진은 메인 표지에 항상 노출됩니다"
             >
               <Eye :size="14" />
-              <span>대표 노출</span>
+              <span>대표</span>
             </div>
             <button class="overlay-btn delete-btn" @click="handleDelete(photo.id)" title="사진 삭제">
               <Trash2 :size="14" />
@@ -673,16 +674,25 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Floating Ghost during Drag (PC Mouse & Mobile Touch) -->
+    <!-- Floating Drag Card Ghost (PC Mouse & Mobile Touch) -->
     <div
-      v-if="isDragging && dragSourceIndex !== null"
-      class="drag-ghost"
+      v-if="isDragging && dragSourceIndex !== null && sortedPhotos[dragSourceIndex]"
+      class="drag-card-ghost"
       :style="{
-        transform: `translate3d(${dragPosition.x - 70}px, ${dragPosition.y - 45}px, 0)`
+        transform: `translate3d(${dragPosition.x - 45}px, ${dragPosition.y - 45}px, 0)`
       }"
     >
-      <GripVertical :size="14" />
-      <span>{{ dragSourceIndex + 1 }}번 사진 이동 중</span>
+      <div class="ghost-thumb-wrap">
+        <img
+          :src="sortedPhotos[dragSourceIndex].url"
+          class="ghost-thumb-img"
+          alt=""
+        />
+        <div class="ghost-badge">
+          <GripVertical :size="11" />
+          <span>{{ dragSourceIndex + 1 }}번 이동</span>
+        </div>
+      </div>
     </div>
 
     <!-- Empty State -->
@@ -935,6 +945,7 @@ onUnmounted(() => {
 .header-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .hidden-file-input {
@@ -1094,6 +1105,18 @@ onUnmounted(() => {
   border-radius: 9999px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   letter-spacing: -0.2px;
+}
+
+.drop-target-indicator.is-target-cover {
+  background: rgba(184, 153, 107, 0.32);
+  border: 2.5px solid var(--gold-primary);
+}
+
+.drop-target-indicator.is-target-cover span {
+  background: var(--gold-dark);
+  border: 1px solid var(--gold-light);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  color: #FFFFFF;
 }
 
 .photo-thumb-wrap {
@@ -1372,27 +1395,54 @@ onUnmounted(() => {
   color: var(--gold-dark);
 }
 
-/* Drag Ghost Preview (PC Mouse & Mobile Touch) */
-.drag-ghost {
+/* Drag Ghost Preview with image card (PC Mouse & Mobile Touch) */
+.drag-card-ghost {
   position: fixed;
   top: 0;
   left: 0;
   pointer-events: none !important;
   user-select: none;
   -webkit-user-select: none;
-  z-index: 9999;
-  background: rgba(44, 40, 37, 0.92);
+  z-index: 99999;
+  will-change: transform;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.35));
+}
+
+.ghost-thumb-wrap {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2.5px solid var(--gold-primary);
+  background: #FFFFFF;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  transform: rotate(3deg) scale(1.05);
+}
+
+.ghost-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ghost-badge {
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(4px);
   color: #FFFFFF;
-  padding: 8px 14px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(6px);
-  will-change: transform;
+  gap: 3px;
+  white-space: nowrap;
 }
 
 .text-danger {

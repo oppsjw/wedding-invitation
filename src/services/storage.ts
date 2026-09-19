@@ -55,6 +55,31 @@ export const rsvpList = ref<RsvpItem[]>(loadFromStorage<RsvpItem[]>(STORAGE_KEYS
 export const guestbook = ref<GuestbookItem[]>(loadFromStorage<GuestbookItem[]>(STORAGE_KEYS.GUESTBOOK, DEFAULT_GUESTBOOK))
 export const adminSettings = ref<AdminSettings>(loadFromStorage<AdminSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_ADMIN_SETTINGS))
 
+// 대표 사진이 항상 무조건 1번째(index 0)에 위치하도록 보장하는 헬퍼
+export function ensureCoverPhotoFirst() {
+  const list = photos.value
+  if (!list || list.length === 0) return
+  const coverIdx = list.findIndex(p => p.isCover)
+  if (coverIdx > 0) {
+    const [cover] = list.splice(coverIdx, 1)
+    list.unshift(cover)
+  } else if (coverIdx === -1 && list.length > 0) {
+    list[0].isCover = true
+  }
+  list.forEach((p, idx) => {
+    p.order = idx
+    if (idx === 0) {
+      p.isCover = true
+      p.isHidden = false
+    } else {
+      p.isCover = false
+    }
+  })
+}
+
+// 시작 시 대표 사진 1번째 정렬 보장
+ensureCoverPhotoFirst()
+
 // Cloud Sync Reactive States
 export const isCloudSyncing = ref(false)
 export const lastCloudSyncTime = ref<string>('')
@@ -219,12 +244,20 @@ export async function syncPhotosFromFirebaseStorage(): Promise<number> {
 }
 
 export function setCoverPhotoItem(id: string) {
-  photos.value.forEach(p => {
-    p.isCover = p.id === id
-    if (p.isCover) {
-      p.isHidden = false // 대표 사진은 항상 노출
-    }
-  })
+  const index = photos.value.findIndex(p => p.id === id)
+  if (index !== -1) {
+    // 선택된 사진을 배열에서 제거 후 1번째(index 0)로 이동
+    const [target] = photos.value.splice(index, 1)
+    photos.value.forEach(p => {
+      p.isCover = false
+    })
+    target.isCover = true
+    target.isHidden = false // 대표 사진은 항상 노출
+    photos.value.unshift(target)
+    photos.value.forEach((p, idx) => {
+      p.order = idx
+    })
+  }
 }
 
 export function updatePhotoItem(id: string, updates: Partial<Omit<PhotoItem, 'id'>>) {
@@ -233,6 +266,7 @@ export function updatePhotoItem(id: string, updates: Partial<Omit<PhotoItem, 'id
     Object.assign(photo, updates)
     if (photo.isCover) {
       photo.isHidden = false
+      setCoverPhotoItem(id)
     }
   }
 }
@@ -250,16 +284,23 @@ export function togglePhotoVisibility(id: string) {
 }
 
 export function reorderPhotos(fromIndex: number, toIndex: number) {
-  // sortedPhotos와 1:1로 일치하도록 order 기준 정렬본을 복사하여 작업
+  if (fromIndex === toIndex) return
+
   const sorted = [...photos.value].sort((a, b) => a.order - b.order)
   if (fromIndex < 0 || fromIndex >= sorted.length || toIndex < 0 || toIndex >= sorted.length) return
-  if (fromIndex === toIndex) return
 
   const [movedItem] = sorted.splice(fromIndex, 1)
   sorted.splice(toIndex, 0, movedItem)
 
+  // 1번째(0번) 자리에 위치한 사진이 자동으로 대표 사진이 되고, 나머지는 대표 해제
   sorted.forEach((p, idx) => {
     p.order = idx
+    if (idx === 0) {
+      p.isCover = true
+      p.isHidden = false // 대표 사진은 항상 노출
+    } else {
+      p.isCover = false
+    }
   })
 
   // 완전한 배열 교체로 Vue 반응성 및 로컬스토리지 watcher 트리거
@@ -355,7 +396,8 @@ export function initCloudSubscriptions() {
         }
         if (cloudData.photos && Array.isArray(cloudData.photos)) {
           photos.value = cloudData.photos
-          localStorage.setItem(STORAGE_KEYS.PHOTOS, JSON.stringify(cloudData.photos))
+          ensureCoverPhotoFirst()
+          localStorage.setItem(STORAGE_KEYS.PHOTOS, JSON.stringify(photos.value))
         }
         if (cloudData.accounts && Array.isArray(cloudData.accounts)) {
           accounts.value = cloudData.accounts
@@ -457,7 +499,10 @@ export async function forceDownloadFromCloud(): Promise<boolean> {
     isApplyingCloudUpdate = true
     try {
       if (cloudData.weddingInfo) weddingInfo.value = cloudData.weddingInfo
-      if (cloudData.photos) photos.value = cloudData.photos
+      if (cloudData.photos) {
+        photos.value = cloudData.photos
+        ensureCoverPhotoFirst()
+      }
       if (cloudData.accounts) accounts.value = cloudData.accounts
       if (cloudData.adminSettings) {
         adminSettings.value = {
@@ -548,6 +593,19 @@ export function formatWeddingDate(dateStr: string, formatPattern?: string, custo
     .replace(/\bm\b/g, String(minutes))
     .replace(/\bA\b/g, ampmKo)
     .replace(/\ba\b/g, ampmEn)
+}
+
+/**
+ * Returns an optimized image URL for fast thumbnail rendering.
+ * Automatically resizes remote images (such as Unsplash) to lightweight dimensions and quality.
+ */
+export function getOptimizedImageUrl(url: string, width = 360, quality = 75): string {
+  if (!url) return ''
+  if (url.includes('images.unsplash.com')) {
+    const base = url.split('?')[0]
+    return `${base}?auto=format&fit=crop&w=${width}&q=${quality}`
+  }
+  return url
 }
 
 export { checkFirestoreStatus }

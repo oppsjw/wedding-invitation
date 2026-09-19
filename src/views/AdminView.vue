@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
 import AdminLogin from '../components/admin/AdminLogin.vue'
 import PhotoManager from '../components/admin/PhotoManager.vue'
 import InfoEditor from '../components/admin/InfoEditor.vue'
@@ -19,20 +18,56 @@ import {
   LogOut
 } from 'lucide-vue-next'
 
-const router = useRouter()
-const isAuthenticated = ref(false)
+const SESSION_KEY = 'wedding_admin_session_expiry'
+const SESSION_DURATION_MS = 30 * 60 * 1000 // 30분 세션 유지
+
+function checkSession(): boolean {
+  try {
+    const expiryStr = localStorage.getItem(SESSION_KEY)
+    if (!expiryStr) return false
+    const expiry = parseInt(expiryStr, 10)
+    if (Date.now() < expiry) {
+      // 세션 유효: 활동 감지로 30분 연장
+      const newExpiry = Date.now() + SESSION_DURATION_MS
+      localStorage.setItem(SESSION_KEY, newExpiry.toString())
+      return true
+    } else {
+      localStorage.removeItem(SESSION_KEY)
+      return false
+    }
+  } catch (e) {
+    return false
+  }
+}
+
+function updateSession() {
+  try {
+    const newExpiry = Date.now() + SESSION_DURATION_MS
+    localStorage.setItem(SESSION_KEY, newExpiry.toString())
+  } catch (e) {}
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem(SESSION_KEY)
+  } catch (e) {}
+}
+
+const isAuthenticated = ref(checkSession())
 const activeTab = ref<'photos' | 'info' | 'accounts' | 'rsvp' | 'guestbook' | 'settings'>('photos')
 
 const handleLoginSuccess = () => {
+  updateSession()
   isAuthenticated.value = true
 }
 
 const handleLogout = () => {
+  clearSession()
   isAuthenticated.value = false
 }
 
 const goToInvitation = () => {
-  router.push('/')
+  window.open('/', '_blank')
 }
 </script>
 
@@ -240,15 +275,52 @@ const goToInvitation = () => {
   font-weight: 600;
 }
 
+.admin-frame {
+  width: 100%;
+  max-width: 1000px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
 .admin-content-wrap {
   padding: 0 28px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 @media (max-width: 640px) {
-  .admin-topbar,
+  .admin-topbar {
+    padding: 14px 16px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .topbar-left {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .admin-tabs-nav {
+    padding: 0 10px;
+    gap: 2px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-btn {
+    padding: 12px 10px;
+    font-size: 12px;
+    gap: 4px;
+  }
+
   .admin-content-wrap {
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-left: 12px;
+    padding-right: 12px;
   }
 }
 </style>

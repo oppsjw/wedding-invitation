@@ -405,6 +405,9 @@ const handleResetSample = () => {
 }
 
 .input-field {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
   padding: 9px 12px;
   border-radius: 8px;
   border: 1px solid var(--border-color);
@@ -656,5 +659,34 @@ input:checked + .slider:before {
 
 .test-msg {
   white-space: pre-line;
+}
+
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .pin-form {
+    max-width: 100%;
+  }
+
+  .sub-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .block-card {
+    padding: 18px 14px;
+  }
+
+  .cloud-actions-row {
+    flex-direction: column;
+  }
+
+  .btn-tool {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>

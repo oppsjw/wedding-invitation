@@ -34,6 +34,8 @@ const formattedDate = computed(() => {
           alt="웨딩 대표 사진"
           class="cover-image"
           loading="eager"
+          fetchpriority="high"
+          decoding="async"
         />
         <div v-else class="empty-cover">
           <Heart :size="32" class="empty-icon" />
@@ -65,7 +67,7 @@ const formattedDate = computed(() => {
   padding: 44px 20px 36px;
   text-align: center;
   position: relative;
-  background: linear-gradient(180deg, #F8F3EB 0%, #FAF7F2 100%);
+  background-color: var(--bg-ivory);
 }
 
 .header-tagline {
