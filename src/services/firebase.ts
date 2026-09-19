@@ -22,7 +22,7 @@ import {
   deleteObject,
   type FirebaseStorage
 } from 'firebase/storage'
-import type { FirebaseConfigSetting, PhotoItem, WeddingInfo, AccountItem, RsvpItem, GuestbookItem } from '../types/wedding'
+import type { FirebaseConfigSetting, PhotoItem, WeddingInfo, AccountItem, RsvpItem, GuestbookItem, LiveSnapItem } from '../types/wedding'
 
 let app: FirebaseApp | null = null
 let db: Firestore | null = null
@@ -379,6 +379,46 @@ export async function deleteRsvpDoc(id: string): Promise<void> {
     if (!db) return
   }
   await deleteDoc(doc(db, 'rsvp_entries', id))
+}
+
+// LiveSnap Firestore Operations
+export function subscribeLiveSnaps(
+  callback: (items: LiveSnapItem[]) => void,
+  onError?: (err: any) => void
+): Unsubscribe | null {
+  if (!db) {
+    initFirebase()
+    if (!db) return null
+  }
+  const snapCol = collection(db, 'livesnap_entries')
+  const q = query(snapCol, orderBy('createdAt', 'desc'))
+  return onSnapshot(q, (querySnap) => {
+    const items: LiveSnapItem[] = []
+    querySnap.forEach((docSnap) => {
+      items.push(docSnap.data() as LiveSnapItem)
+    })
+    callback(items)
+  }, (err) => {
+    console.warn('Firestore LiveSnap subscription error:', err)
+    if (onError) onError(err)
+  })
+}
+
+export async function saveLiveSnapDoc(item: LiveSnapItem): Promise<void> {
+  if (!db) {
+    initFirebase()
+    if (!db) return
+  }
+  const cleanItem = JSON.parse(JSON.stringify(item))
+  await setDoc(doc(db, 'livesnap_entries', item.id), cleanItem)
+}
+
+export async function deleteLiveSnapDoc(id: string): Promise<void> {
+  if (!db) {
+    initFirebase()
+    if (!db) return
+  }
+  await deleteDoc(doc(db, 'livesnap_entries', id))
 }
 
 export async function checkFirestoreStatus(): Promise<{ ok: boolean; message: string }> {

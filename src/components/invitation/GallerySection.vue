@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { photos, weddingInfo, getOptimizedImageUrl } from '../../services/storage'
+import { photos, weddingInfo, getOptimizedImageUrl, isStoryOpen } from '../../services/storage'
 import type { PhotoItem } from '../../types/wedding'
 import { X, ChevronLeft, ChevronRight, ChevronDown, Play, Pause } from 'lucide-vue-next'
 
@@ -17,6 +17,7 @@ const onThumbnailLoad = (id: string) => {
 // --- Mobile Long-Press Peek Preview Popup ---
 const peekPhoto = ref<PhotoItem | null>(null)
 const isPeeking = ref(false)
+const isPeekImageLoaded = ref(false)
 let peekTimer: any = null
 let touchStartX = 0
 let touchStartY = 0
@@ -31,6 +32,7 @@ const handleThumbnailTouchStart = (photo: PhotoItem, e: TouchEvent) => {
 
   peekTimer = setTimeout(() => {
     isLongPressActive = true
+    isPeekImageLoaded.value = false
     peekPhoto.value = photo
     isPeeking.value = true
     if ('vibrate' in navigator) {
@@ -134,6 +136,7 @@ const runProgressAnim = () => {
 
 const openLightbox = (index: number) => {
   selectedIndex.value = index
+  isStoryOpen.value = true
   progress.value = 0
   pausedProgress = 0
   isPaused.value = false
@@ -146,6 +149,7 @@ const closeLightbox = () => {
   stopProgressAnim()
   clearTimeout(holdTimer)
   selectedIndex.value = null
+  isStoryOpen.value = false
   isHolding.value = false
   document.body.style.overflow = ''
 }
@@ -155,7 +159,11 @@ const prevPhoto = () => {
   stopProgressAnim()
   progress.value = 0
   pausedProgress = 0
-  selectedIndex.value = (selectedIndex.value - 1 + sortedPhotos.value.length) % sortedPhotos.value.length
+  if (selectedIndex.value > 0) {
+    selectedIndex.value = selectedIndex.value - 1
+  } else {
+    selectedIndex.value = 0
+  }
   runProgressAnim()
 }
 
@@ -164,7 +172,12 @@ const nextPhoto = () => {
   stopProgressAnim()
   progress.value = 0
   pausedProgress = 0
-  selectedIndex.value = (selectedIndex.value + 1) % sortedPhotos.value.length
+  if (selectedIndex.value >= sortedPhotos.value.length - 1) {
+    // 맨 마지막 사진에 도달했을 때 첫 번째 사진으로 가지 않고 닫힘
+    closeLightbox()
+    return
+  }
+  selectedIndex.value = selectedIndex.value + 1
   runProgressAnim()
 }
 
@@ -277,6 +290,7 @@ onUnmounted(() => {
   stopProgressAnim()
   clearTimeout(holdTimer)
   clearTimeout(peekTimer)
+  isStoryOpen.value = false
   document.body.style.overflow = ''
 })
 </script>
@@ -302,8 +316,11 @@ onUnmounted(() => {
         @touchcancel="handleThumbnailTouchEnd"
         @click="handleThumbnailClick(index)"
       >
-        <!-- Skeleton Placeholder while loading -->
-        <div v-if="!loadedThumbnails[photo.id]" class="thumbnail-skeleton"></div>
+        <!-- Skeleton Placeholder while loading from Firebase -->
+        <div v-if="!loadedThumbnails[photo.id]" class="thumbnail-skeleton">
+          <div class="skeleton-shimmer"></div>
+          <div class="skeleton-pulse-ring"></div>
+        </div>
 
         <img
           :src="getOptimizedImageUrl(photo.url, 400, 75)"
@@ -337,10 +354,17 @@ onUnmounted(() => {
             <span class="peek-badge font-sans">미리보기</span>
           </div>
           <div class="peek-image-container">
+            <!-- Peek Skeleton Loader -->
+            <div v-if="!isPeekImageLoaded" class="peek-skeleton">
+              <div class="skeleton-shimmer"></div>
+              <div class="peek-spinner"></div>
+            </div>
             <img
               :src="getOptimizedImageUrl(peekPhoto.url, 800, 85)"
               :alt="peekPhoto.caption || '사진 미리보기'"
               class="peek-image"
+              :class="{ 'is-loaded': isPeekImageLoaded }"
+              @load="isPeekImageLoaded = true"
             />
           </div>
           <div v-if="peekPhoto.caption" class="peek-caption font-serif">
@@ -513,10 +537,40 @@ onUnmounted(() => {
 .thumbnail-skeleton {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, #EFE7DA 25%, #F7F2EA 50%, #EFE7DA 75%);
+  background: #EFE7DA;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.skeleton-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(239, 231, 218, 0) 0%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(239, 231, 218, 0) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
-  z-index: 1;
+}
+
+.skeleton-pulse-ring {
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(168, 131, 80, 0.25);
+  border-top-color: var(--gold-primary);
+  border-radius: 50%;
+  animation: spin 0.85s linear infinite;
+  z-index: 2;
+  opacity: 0.85;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 @keyframes shimmer {
@@ -985,8 +1039,29 @@ onUnmounted(() => {
   aspect-ratio: 4 / 5;
   border-radius: 12px;
   overflow: hidden;
-  background: #000000;
+  background: #1e1b18;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  position: relative;
+}
+
+.peek-skeleton {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  background: #2a2521;
+}
+
+.peek-spinner {
+  width: 30px;
+  height: 30px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--gold-primary);
+  border-radius: 50%;
+  animation: spin 0.85s linear infinite;
+  z-index: 3;
 }
 
 .peek-image {
@@ -994,6 +1069,12 @@ onUnmounted(() => {
   height: 100%;
   object-fit: cover;
   display: block;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.peek-image.is-loaded {
+  opacity: 1;
 }
 
 .peek-caption {

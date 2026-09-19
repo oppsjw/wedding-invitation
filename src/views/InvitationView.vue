@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { Home, Heart, Image, MapPin, MessageSquare } from 'lucide-vue-next'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { Home, Heart, Image, MapPin, MessageSquare, Share2 } from 'lucide-vue-next'
 import BgmPlayer from '../components/invitation/BgmPlayer.vue'
 import CoverSection from '../components/invitation/CoverSection.vue'
 import GreetingSection from '../components/invitation/GreetingSection.vue'
@@ -10,7 +10,9 @@ import LocationSection from '../components/invitation/LocationSection.vue'
 import AccountSection from '../components/invitation/AccountSection.vue'
 import RsvpSection from '../components/invitation/RsvpSection.vue'
 import GuestbookSection from '../components/invitation/GuestbookSection.vue'
+import LiveSnapSection from '../components/invitation/LiveSnapSection.vue'
 import ShareFooter from '../components/invitation/ShareFooter.vue'
+import { isStoryOpen, weddingInfo, photos, adminSettings, isWeddingDayOrLater } from '../services/storage'
 
 // --- Bottom Mini Navigation Bar ---
 const navItems = [
@@ -43,6 +45,52 @@ const navigateTo = (sectionIndex: number) => {
   if (sections[sectionIndex]) {
     scrollToSection(sections[sectionIndex])
     currentSectionIndex.value = sectionIndex
+  }
+}
+
+const isLiveSnapVisible = computed(() => {
+  return isWeddingDayOrLater(weddingInfo.value.date, adminSettings.value.forceShowLiveSnap)
+})
+
+const handleShare = () => {
+  const kakao = (window as any).Kakao
+  const currentUrl = window.location.href
+  const coverImg = photos.value.find(p => p.isCover)?.url || photos.value[0]?.url || ''
+  const title = `${weddingInfo.value.groom.name} ♥ ${weddingInfo.value.bride.name} 결혼합니다`
+  const description = `${weddingInfo.value.venue.name} ${weddingInfo.value.venue.hall}`
+
+  if (kakao && kakao.isInitialized && kakao.isInitialized()) {
+    kakao.Share.sendDefault({
+      objectType: 'feed',
+      content: {
+        title,
+        description,
+        imageUrl: coverImg,
+        link: {
+          mobileWebUrl: currentUrl,
+          webUrl: currentUrl
+        }
+      },
+      buttons: [
+        {
+          title: '모바일 청첩장 보기',
+          link: {
+            mobileWebUrl: currentUrl,
+            webUrl: currentUrl
+          }
+        }
+      ]
+    })
+  } else if (navigator.share) {
+    navigator.share({
+      title,
+      text: description,
+      url: currentUrl
+    }).catch(() => {})
+  } else {
+    navigator.clipboard.writeText(currentUrl).then(() => {
+      alert('청첩장 링크가 복사되었습니다.')
+    }).catch(() => {})
   }
 }
 
@@ -198,25 +246,44 @@ onUnmounted(() => {
       <GuestbookSection />
     </section>
 
-    <!-- 9. Share & Footer Section -->
+    <!-- 9. Live Snap Section (Visible on wedding day or if force-shown) -->
+    <section v-if="isLiveSnapVisible" class="snap-section">
+      <LiveSnapSection />
+    </section>
+
+    <!-- 10. Share & Footer Section -->
     <section class="snap-section">
       <ShareFooter />
     </section>
 
-    <!-- Floating Bottom Mini Navigation Bar -->
-    <nav class="bottom-mini-nav font-sans" aria-label="하단 네비게이션 메뉴">
-      <button
-        v-for="item in navItems"
-        :key="item.label"
-        class="nav-item-btn"
-        :class="{ 'is-active': isNavActive(item.sectionIndex) }"
-        @click="navigateTo(item.sectionIndex)"
-        :aria-label="item.label"
-      >
-        <component :is="item.icon" :size="15" class="nav-icon" />
-        <span class="nav-label">{{ item.label }}</span>
-      </button>
-    </nav>
+    <!-- Floating Bottom Navigation & Share Bar (Hidden on Section 0 / Home and when Story Modal is open) -->
+    <Transition name="nav-fade">
+      <div v-if="currentSectionIndex > 0 && !isStoryOpen" class="bottom-floating-bar-wrapper">
+        <nav class="bottom-mini-nav font-sans" aria-label="하단 네비게이션 메뉴">
+          <button
+            v-for="item in navItems"
+            :key="item.label"
+            class="nav-item-btn"
+            :class="{ 'is-active': isNavActive(item.sectionIndex) }"
+            @click="navigateTo(item.sectionIndex)"
+            :aria-label="item.label"
+          >
+            <component :is="item.icon" :size="15" class="nav-icon" />
+            <span class="nav-label">{{ item.label }}</span>
+          </button>
+        </nav>
+
+        <!-- Circular Floating Share Button -->
+        <button
+          @click="handleShare"
+          class="floating-share-circle-btn font-sans"
+          aria-label="공유"
+        >
+          <Share2 :size="15" class="share-icon" />
+          <span class="share-text">공유</span>
+        </button>
+      </div>
+    </Transition>
   </main>
 </template>
 
@@ -246,14 +313,26 @@ onUnmounted(() => {
   margin-bottom: auto;
 }
 
-/* Floating Bottom Mini Navigation Bar */
-.bottom-mini-nav {
+/* Floating Bottom Navigation & Share Bar Wrapper */
+.bottom-floating-bar-wrapper {
   position: fixed;
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  width: calc(100% - 32px);
-  max-width: 360px;
+  width: calc(100% - 24px);
+  max-width: 390px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  z-index: 85;
+  pointer-events: none;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.bottom-mini-nav {
+  pointer-events: auto;
+  flex: 1;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -264,8 +343,48 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-around;
-  z-index: 85;
-  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.floating-share-circle-btn {
+  pointer-events: auto;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(224, 214, 201, 0.75);
+  box-shadow: 0 4px 20px rgba(45, 41, 38, 0.12), 0 1px 4px rgba(45, 41, 38, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5px;
+  color: var(--text-sub);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.floating-share-circle-btn:hover {
+  background: #ffffff;
+  color: var(--gold-dark);
+  transform: scale(1.05);
+}
+
+.floating-share-circle-btn:active {
+  transform: scale(0.95);
+}
+
+.share-icon {
+  transition: transform 0.2s ease;
+}
+
+.share-text {
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.2px;
 }
 
 .nav-item-btn {
@@ -310,6 +429,18 @@ onUnmounted(() => {
 
 .nav-item-btn.is-active .nav-label {
   font-weight: 700;
+}
+
+/* Navigation Fade Transitions */
+.nav-fade-enter-active,
+.nav-fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.nav-fade-enter-from,
+.nav-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 20px);
 }
 
 /* Mobile responsive adjustments */

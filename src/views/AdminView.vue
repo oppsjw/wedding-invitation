@@ -6,6 +6,7 @@ import InfoEditor from '../components/admin/InfoEditor.vue'
 import AccountManager from '../components/admin/AccountManager.vue'
 import RsvpViewer from '../components/admin/RsvpViewer.vue'
 import GuestbookModerator from '../components/admin/GuestbookModerator.vue'
+import LiveSnapManager from '../components/admin/LiveSnapManager.vue'
 import AdminSettings from '../components/admin/AdminSettings.vue'
 import {
   Image as ImageIcon,
@@ -13,6 +14,7 @@ import {
   CreditCard,
   Users,
   MessageSquare,
+  Camera,
   Settings,
   ExternalLink,
   LogOut
@@ -54,7 +56,7 @@ function clearSession() {
 }
 
 const isAuthenticated = ref(checkSession())
-const activeTab = ref<'photos' | 'info' | 'accounts' | 'rsvp' | 'guestbook' | 'settings'>('photos')
+const activeTab = ref<'photos' | 'info' | 'accounts' | 'rsvp' | 'guestbook' | 'livesnap' | 'settings'>('photos')
 
 const handleLoginSuccess = () => {
   updateSession()
@@ -147,6 +149,15 @@ const goToInvitation = () => {
 
         <button
           class="tab-btn"
+          :class="{ 'active': activeTab === 'livesnap' }"
+          @click="activeTab = 'livesnap'"
+        >
+          <Camera :size="16" />
+          <span>현장 스냅</span>
+        </button>
+
+        <button
+          class="tab-btn"
           :class="{ 'active': activeTab === 'settings' }"
           @click="activeTab = 'settings'"
         >
@@ -162,6 +173,7 @@ const goToInvitation = () => {
         <AccountManager v-else-if="activeTab === 'accounts'" />
         <RsvpViewer v-else-if="activeTab === 'rsvp'" />
         <GuestbookModerator v-else-if="activeTab === 'guestbook'" />
+        <LiveSnapManager v-else-if="activeTab === 'livesnap'" />
         <AdminSettings v-else-if="activeTab === 'settings'" />
       </main>
     </div>

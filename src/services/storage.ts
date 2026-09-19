@@ -1,11 +1,12 @@
 import { ref, watch } from 'vue'
-import type { PhotoItem, WeddingInfo, AccountItem, RsvpItem, GuestbookItem, AdminSettings } from '../types/wedding'
+import type { PhotoItem, WeddingInfo, AccountItem, RsvpItem, GuestbookItem, AdminSettings, LiveSnapItem } from '../types/wedding'
 import {
   DEFAULT_PHOTOS,
   DEFAULT_WEDDING_INFO,
   DEFAULT_ACCOUNTS,
   DEFAULT_GUESTBOOK,
-  DEFAULT_ADMIN_SETTINGS
+  DEFAULT_ADMIN_SETTINGS,
+  DEFAULT_LIVE_SNAPS
 } from '../constants/initialData'
 import {
   initFirebase,
@@ -23,6 +24,9 @@ import {
   subscribeRsvp,
   saveRsvpDoc,
   deleteRsvpDoc,
+  subscribeLiveSnaps,
+  saveLiveSnapDoc,
+  deleteLiveSnapDoc,
   checkFirestoreStatus
 } from './firebase'
 
@@ -32,7 +36,8 @@ const STORAGE_KEYS = {
   ACCOUNTS: 'wedding_accounts_v2',
   RSVP: 'wedding_rsvp_v1',
   GUESTBOOK: 'wedding_guestbook_v1',
-  SETTINGS: 'wedding_admin_settings_v2'
+  SETTINGS: 'wedding_admin_settings_v2',
+  LIVESNAPS: 'wedding_livesnaps_v1'
 }
 
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -54,6 +59,7 @@ export const accounts = ref<AccountItem[]>(loadFromStorage<AccountItem[]>(STORAG
 export const rsvpList = ref<RsvpItem[]>(loadFromStorage<RsvpItem[]>(STORAGE_KEYS.RSVP, []))
 export const guestbook = ref<GuestbookItem[]>(loadFromStorage<GuestbookItem[]>(STORAGE_KEYS.GUESTBOOK, DEFAULT_GUESTBOOK))
 export const adminSettings = ref<AdminSettings>(loadFromStorage<AdminSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_ADMIN_SETTINGS))
+export const liveSnaps = ref<LiveSnapItem[]>(loadFromStorage<LiveSnapItem[]>(STORAGE_KEYS.LIVESNAPS, DEFAULT_LIVE_SNAPS))
 
 // 대표 사진이 항상 무조건 1번째(index 0)에 위치하도록 보장하는 헬퍼
 export function ensureCoverPhotoFirst() {
@@ -84,6 +90,9 @@ ensureCoverPhotoFirst()
 export const isCloudSyncing = ref(false)
 export const lastCloudSyncTime = ref<string>('')
 export const isCloudConnected = ref(isFirestoreReady())
+
+// UI Overlay States
+export const isStoryOpen = ref(false)
 
 // Ensure firebaseConfig structure exists
 if (!adminSettings.value.firebaseConfig) {
@@ -159,6 +168,14 @@ watch(rsvpList, (val) => {
 
 watch(guestbook, (val) => {
   localStorage.setItem(STORAGE_KEYS.GUESTBOOK, JSON.stringify(val))
+}, { deep: true })
+
+watch(liveSnaps, (val) => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.LIVESNAPS, JSON.stringify(val))
+  } catch (e) {
+    console.warn('Storage quota warning when saving live snaps:', e)
+  }
 }, { deep: true })
 
 watch(adminSettings, (val) => {
@@ -367,6 +384,7 @@ export function deleteGuestbookEntry(id: string, inputPass?: string, isAdmin = f
 let unsubWedding: (() => void) | null = null
 let unsubGuestbook: (() => void) | null = null
 let unsubRsvp: (() => void) | null = null
+let unsubLiveSnaps: (() => void) | null = null
 let isInitialContentChecked = false
 
 export function initCloudSubscriptions() {
@@ -451,6 +469,23 @@ export function initCloudSubscriptions() {
         if (items && items.length > 0) {
           rsvpList.value = items
           localStorage.setItem(STORAGE_KEYS.RSVP, JSON.stringify(items))
+        }
+      } finally {
+        setTimeout(() => {
+          isApplyingCloudUpdate = false
+        }, 300)
+      }
+    })
+  }
+
+  // 4. 현장 스냅 실시간 구독
+  if (!unsubLiveSnaps) {
+    unsubLiveSnaps = subscribeLiveSnaps((items) => {
+      isApplyingCloudUpdate = true
+      try {
+        if (items && items.length > 0) {
+          liveSnaps.value = items
+          localStorage.setItem(STORAGE_KEYS.LIVESNAPS, JSON.stringify(items))
         }
       } finally {
         setTimeout(() => {
@@ -606,6 +641,208 @@ export function getOptimizedImageUrl(url: string, width = 360, quality = 75): st
     return `${base}?auto=format&fit=crop&w=${width}&q=${quality}`
   }
   return url
+}
+
+/**
+ * Helper to compress image client-side to keep under storage limits
+ */
+function compressImage(file: File, maxWidth = 1280, quality = 0.8): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let width = img.width
+        let height = img.height
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width)
+          width = maxWidth
+        }
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          resolve(e.target?.result as string)
+          return
+        }
+        ctx.drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.onerror = reject
+      img.src = e.target?.result as string
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+export async function uploadToGoogleDrive(
+  file: File,
+  scriptUrl: string,
+  folderId?: string,
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  onProgress?.(10)
+
+  // 1. Read file as base64
+  const base64Data = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const res = reader.result as string
+      const base64 = res.split(',')[1] || ''
+      resolve(base64)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+  onProgress?.(40)
+
+  const payload = {
+    fileBase64: base64Data,
+    fileName: file.name,
+    mimeType: file.type || 'application/octet-stream',
+    folderId: folderId?.trim() || undefined
+  }
+
+  onProgress?.(65)
+
+  // Send request using text/plain to avoid CORS preflight rejection by Google Apps Script
+  const response = await fetch(scriptUrl.trim(), {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8'
+    }
+  })
+
+  onProgress?.(90)
+
+  if (!response.ok) {
+    throw new Error(`구글 드라이브 업로드 응답 오류 (${response.status}): 구글 앱스 스크립트 웹앱 주소를 확인해주세요.`)
+  }
+
+  const result = await response.json()
+  if (!result.success && result.error) {
+    throw new Error(`구글 드라이브 업로드 실패: ${result.error}`)
+  }
+
+  if (!result.url) {
+    throw new Error('구글 드라이브 업로드 후 파일 링크를 받아오지 못했습니다.')
+  }
+
+  onProgress?.(100)
+  return result.url
+}
+
+export async function uploadLiveSnapMedia(file: File, onProgress?: (percent: number) => void): Promise<{ url: string; type: 'image' | 'video' }> {
+  const isVideo = file.type.startsWith('video/')
+  if (isVideo) {
+    const maxVideoBytes = 100 * 1024 * 1024 // 100MB
+    if (file.size > maxVideoBytes) {
+      throw new Error(`동영상 파일 크기는 최대 100MB까지 업로드할 수 있습니다. (현재: ${(file.size / (1024 * 1024)).toFixed(1)}MB)`)
+    }
+  }
+
+  // 1. Google Drive upload if configured
+  if (adminSettings.value.googleDriveScriptUrl) {
+    try {
+      const driveUrl = await uploadToGoogleDrive(
+        file,
+        adminSettings.value.googleDriveScriptUrl,
+        adminSettings.value.googleDriveFolderId,
+        onProgress
+      )
+      return { url: driveUrl, type: isVideo ? 'video' : 'image' }
+    } catch (err: any) {
+      console.error('Google Drive upload failed:', err)
+      throw new Error(`Google Drive 업로드 실패: ${err.message || '알 수 없는 오류'}`)
+    }
+  }
+
+  // 2. Firebase Storage upload if available
+  if (isFirebaseStorageReady() || adminSettings.value.firebaseConfig?.apiKey) {
+    if (!isFirebaseStorageReady()) {
+      initFirebase(adminSettings.value.firebaseConfig)
+    }
+    if (isFirebaseStorageReady()) {
+      const uploadedUrl = await uploadToFirebaseStorage(file, onProgress)
+      return { url: uploadedUrl, type: isVideo ? 'video' : 'image' }
+    }
+  }
+
+  // 3. Client-side fallback if neither connected
+  if (isVideo) {
+    const objectUrl = URL.createObjectURL(file)
+    return { url: objectUrl, type: 'video' }
+  } else {
+    const compressedDataUrl = await compressImage(file)
+    return { url: compressedDataUrl, type: 'image' }
+  }
+}
+
+export function addLiveSnap(snap: Omit<LiveSnapItem, 'id' | 'createdAt'>): LiveSnapItem {
+  const newItem: LiveSnapItem = {
+    ...snap,
+    id: 'snap_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+    createdAt: new Date().toISOString()
+  }
+  liveSnaps.value.unshift(newItem)
+  try {
+    localStorage.setItem(STORAGE_KEYS.LIVESNAPS, JSON.stringify(liveSnaps.value))
+  } catch (e) {
+    console.warn('LocalStorage save error for live snap:', e)
+  }
+  if (isFirestoreReady()) {
+    saveLiveSnapDoc(newItem).catch(err => console.warn('현장스냅 Firestore 저장 실패:', err))
+  }
+  return newItem
+}
+
+export function deleteLiveSnap(id: string) {
+  const index = liveSnaps.value.findIndex(s => s.id === id)
+  if (index !== -1) {
+    liveSnaps.value.splice(index, 1)
+    try {
+      localStorage.setItem(STORAGE_KEYS.LIVESNAPS, JSON.stringify(liveSnaps.value))
+    } catch (e) {
+      console.warn('LocalStorage error deleting snap:', e)
+    }
+    if (isFirestoreReady()) {
+      deleteLiveSnapDoc(id).catch(err => console.warn('현장스냅 Firestore 삭제 실패:', err))
+    }
+  }
+}
+
+export function toggleLiveSnapVisibility(id: string): boolean {
+  const snap = liveSnaps.value.find(s => s.id === id)
+  if (snap) {
+    snap.isHidden = !snap.isHidden
+    try {
+      localStorage.setItem(STORAGE_KEYS.LIVESNAPS, JSON.stringify(liveSnaps.value))
+    } catch (e) {
+      console.warn('LocalStorage save error:', e)
+    }
+    if (isFirestoreReady()) {
+      saveLiveSnapDoc(snap).catch(err => console.warn('현장스냅 상태 Firestore 저장 실패:', err))
+    }
+    return !snap.isHidden
+  }
+  return false
+}
+
+export function isWeddingDayOrLater(weddingDateStr?: string, forceShow?: boolean): boolean {
+  if (forceShow) return true
+  if (!weddingDateStr) return false
+  const targetDate = new Date(weddingDateStr)
+  if (isNaN(targetDate.getTime())) return false
+
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const targetDateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
+
+  return todayStr >= targetDateStr
 }
 
 export { checkFirestoreStatus }
