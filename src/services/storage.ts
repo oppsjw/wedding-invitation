@@ -12,7 +12,18 @@ import {
   uploadToFirebaseStorage,
   isFirebaseStorageReady,
   fetchPhotosFromFirebaseStorage,
-  deleteFromFirebaseStorage
+  deleteFromFirebaseStorage,
+  isFirestoreReady,
+  saveWeddingContentToFirestore,
+  fetchWeddingContentFromFirestore,
+  subscribeWeddingContent,
+  subscribeGuestbook,
+  saveGuestbookDoc,
+  deleteGuestbookDoc,
+  subscribeRsvp,
+  saveRsvpDoc,
+  deleteRsvpDoc,
+  checkFirestoreStatus
 } from './firebase'
 
 const STORAGE_KEYS = {
@@ -44,6 +55,11 @@ export const rsvpList = ref<RsvpItem[]>(loadFromStorage<RsvpItem[]>(STORAGE_KEYS
 export const guestbook = ref<GuestbookItem[]>(loadFromStorage<GuestbookItem[]>(STORAGE_KEYS.GUESTBOOK, DEFAULT_GUESTBOOK))
 export const adminSettings = ref<AdminSettings>(loadFromStorage<AdminSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_ADMIN_SETTINGS))
 
+// Cloud Sync Reactive States
+export const isCloudSyncing = ref(false)
+export const lastCloudSyncTime = ref<string>('')
+export const isCloudConnected = ref(isFirestoreReady())
+
 // Ensure firebaseConfig structure exists
 if (!adminSettings.value.firebaseConfig) {
   adminSettings.value.firebaseConfig = {
@@ -64,21 +80,52 @@ if (adminSettings.value.useFirebase && adminSettings.value.firebaseConfig?.apiKe
   initFirebase()
 }
 
-// Watchers to auto-persist to LocalStorage
+// Flag to prevent echo feedback loops between Firestore and Watchers
+let isApplyingCloudUpdate = false
+let cloudSaveTimer: any = null
+
+function triggerCloudSave() {
+  if (isApplyingCloudUpdate || !isFirestoreReady()) return
+
+  if (cloudSaveTimer) clearTimeout(cloudSaveTimer)
+  cloudSaveTimer = setTimeout(async () => {
+    try {
+      isCloudSyncing.value = true
+      await saveWeddingContentToFirestore({
+        weddingInfo: weddingInfo.value,
+        photos: photos.value,
+        accounts: accounts.value,
+        adminSettings: adminSettings.value
+      })
+      lastCloudSyncTime.value = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      isCloudConnected.value = true
+    } catch (err) {
+      console.warn('Auto cloud sync failed:', err)
+      isCloudConnected.value = false
+    } finally {
+      isCloudSyncing.value = false
+    }
+  }, 1000)
+}
+
+// Watchers to auto-persist to LocalStorage & Firestore
 watch(photos, (val) => {
   try {
     localStorage.setItem(STORAGE_KEYS.PHOTOS, JSON.stringify(val))
   } catch (e) {
     console.warn('Storage quota warning when saving photos:', e)
   }
+  triggerCloudSave()
 }, { deep: true })
 
 watch(weddingInfo, (val) => {
   localStorage.setItem(STORAGE_KEYS.INFO, JSON.stringify(val))
+  triggerCloudSave()
 }, { deep: true })
 
 watch(accounts, (val) => {
   localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(val))
+  triggerCloudSave()
 }, { deep: true })
 
 watch(rsvpList, (val) => {
@@ -93,7 +140,9 @@ watch(adminSettings, (val) => {
   localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(val))
   if (val.useFirebase && val.firebaseConfig?.apiKey) {
     initFirebase(val.firebaseConfig)
+    initCloudSubscriptions()
   }
+  triggerCloudSave()
 }, { deep: true })
 
 // Helper functions for Photo operations
@@ -230,6 +279,9 @@ export function addRsvpResponse(rsvp: Omit<RsvpItem, 'id' | 'createdAt'>) {
     createdAt: new Date().toISOString()
   }
   rsvpList.value.unshift(newItem)
+  if (isFirestoreReady()) {
+    saveRsvpDoc(newItem).catch(err => console.warn('RSVP Firestore 저장 실패:', err))
+  }
   return newItem
 }
 
@@ -237,6 +289,9 @@ export function deleteRsvpItem(id: string) {
   const index = rsvpList.value.findIndex(r => r.id === id)
   if (index !== -1) {
     rsvpList.value.splice(index, 1)
+    if (isFirestoreReady()) {
+      deleteRsvpDoc(id).catch(err => console.warn('RSVP Firestore 삭제 실패:', err))
+    }
   }
 }
 
@@ -248,6 +303,9 @@ export function addGuestbookEntry(entry: Omit<GuestbookItem, 'id' | 'createdAt'>
     createdAt: new Date().toISOString()
   }
   guestbook.value.unshift(newItem)
+  if (isFirestoreReady()) {
+    saveGuestbookDoc(newItem).catch(err => console.warn('방명록 Firestore 저장 실패:', err))
+  }
   return newItem
 }
 
@@ -256,9 +314,173 @@ export function deleteGuestbookEntry(id: string, inputPass?: string, isAdmin = f
   if (index === -1) return false
   if (isAdmin || (inputPass && guestbook.value[index].password === inputPass)) {
     guestbook.value.splice(index, 1)
+    if (isFirestoreReady()) {
+      deleteGuestbookDoc(id).catch(err => console.warn('방명록 Firestore 삭제 실패:', err))
+    }
     return true
   }
   return false
+}
+
+// Cloud Realtime Subscription Management
+let unsubWedding: (() => void) | null = null
+let unsubGuestbook: (() => void) | null = null
+let unsubRsvp: (() => void) | null = null
+let isInitialContentChecked = false
+
+export function initCloudSubscriptions() {
+  if (!isFirestoreReady()) return
+
+  isCloudConnected.value = true
+
+  // 1. 메인 청첩장 데이터 구독
+  if (!unsubWedding) {
+    unsubWedding = subscribeWeddingContent((cloudData) => {
+      if (!cloudData || (!cloudData.weddingInfo && !cloudData.photos)) {
+        // 클라우드가 비어있는 경우 로컬 데이터를 클라우드로 1회 자동 업로드 (초기화)
+        if (!isInitialContentChecked) {
+          isInitialContentChecked = true
+          triggerCloudSave()
+        }
+        return
+      }
+
+      isInitialContentChecked = true
+      isApplyingCloudUpdate = true
+
+      try {
+        if (cloudData.weddingInfo) {
+          weddingInfo.value = cloudData.weddingInfo
+          localStorage.setItem(STORAGE_KEYS.INFO, JSON.stringify(cloudData.weddingInfo))
+        }
+        if (cloudData.photos && Array.isArray(cloudData.photos)) {
+          photos.value = cloudData.photos
+          localStorage.setItem(STORAGE_KEYS.PHOTOS, JSON.stringify(cloudData.photos))
+        }
+        if (cloudData.accounts && Array.isArray(cloudData.accounts)) {
+          accounts.value = cloudData.accounts
+          localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(cloudData.accounts))
+        }
+        if (cloudData.adminSettings) {
+          adminSettings.value = {
+            ...adminSettings.value,
+            ...cloudData.adminSettings,
+            firebaseConfig: cloudData.adminSettings.firebaseConfig?.apiKey
+              ? cloudData.adminSettings.firebaseConfig
+              : adminSettings.value.firebaseConfig
+          }
+          localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(adminSettings.value))
+        }
+        lastCloudSyncTime.value = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        isCloudConnected.value = true
+      } finally {
+        setTimeout(() => {
+          isApplyingCloudUpdate = false
+        }, 300)
+      }
+    }, (err) => {
+      console.warn('Firestore wedding subscription error:', err)
+      isCloudConnected.value = false
+    })
+  }
+
+  // 2. 방명록 실시간 구독
+  if (!unsubGuestbook) {
+    unsubGuestbook = subscribeGuestbook((items) => {
+      isApplyingCloudUpdate = true
+      try {
+        if (items && items.length > 0) {
+          guestbook.value = items
+          localStorage.setItem(STORAGE_KEYS.GUESTBOOK, JSON.stringify(items))
+        }
+      } finally {
+        setTimeout(() => {
+          isApplyingCloudUpdate = false
+        }, 300)
+      }
+    })
+  }
+
+  // 3. RSVP 실시간 구독
+  if (!unsubRsvp) {
+    unsubRsvp = subscribeRsvp((items) => {
+      isApplyingCloudUpdate = true
+      try {
+        if (items && items.length > 0) {
+          rsvpList.value = items
+          localStorage.setItem(STORAGE_KEYS.RSVP, JSON.stringify(items))
+        }
+      } finally {
+        setTimeout(() => {
+          isApplyingCloudUpdate = false
+        }, 300)
+      }
+    })
+  }
+}
+
+// 수동 클라우드 업로드 / 다운로드 함수
+export async function forceUploadToCloud(): Promise<void> {
+  if (!isFirestoreReady()) {
+    initFirebase()
+    if (!isFirestoreReady()) {
+      throw new Error('Firebase Firestore가 연결되지 않았습니다.')
+    }
+  }
+  isCloudSyncing.value = true
+  try {
+    await saveWeddingContentToFirestore({
+      weddingInfo: weddingInfo.value,
+      photos: photos.value,
+      accounts: accounts.value,
+      adminSettings: adminSettings.value
+    })
+    lastCloudSyncTime.value = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    isCloudConnected.value = true
+  } finally {
+    isCloudSyncing.value = false
+  }
+}
+
+export async function forceDownloadFromCloud(): Promise<boolean> {
+  if (!isFirestoreReady()) {
+    initFirebase()
+    if (!isFirestoreReady()) {
+      throw new Error('Firebase Firestore가 연결되지 않았습니다.')
+    }
+  }
+  isCloudSyncing.value = true
+  try {
+    const cloudData = await fetchWeddingContentFromFirestore()
+    if (!cloudData) return false
+
+    isApplyingCloudUpdate = true
+    try {
+      if (cloudData.weddingInfo) weddingInfo.value = cloudData.weddingInfo
+      if (cloudData.photos) photos.value = cloudData.photos
+      if (cloudData.accounts) accounts.value = cloudData.accounts
+      if (cloudData.adminSettings) {
+        adminSettings.value = {
+          ...adminSettings.value,
+          ...cloudData.adminSettings
+        }
+      }
+      lastCloudSyncTime.value = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      isCloudConnected.value = true
+      return true
+    } finally {
+      setTimeout(() => {
+        isApplyingCloudUpdate = false
+      }, 300)
+    }
+  } finally {
+    isCloudSyncing.value = false
+  }
+}
+
+// Firestore 준비 시 자동 구독 활성화
+if (isFirestoreReady()) {
+  initCloudSubscriptions()
 }
 
 // Reset to factory sample data
@@ -328,4 +550,4 @@ export function formatWeddingDate(dateStr: string, formatPattern?: string, custo
     .replace(/\ba\b/g, ampmEn)
 }
 
-
+export { checkFirestoreStatus }
