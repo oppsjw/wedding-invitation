@@ -147,17 +147,23 @@ const runProgressAnim = () => {
   animId = requestAnimationFrame(tick)
 }
 
+let savedScrollY = 0
+let isNavigatingBack = false
+const isStoryImageLoaded = ref(false)
+
 const openLightbox = (index: number) => {
+  savedScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0
+  isNavigatingBack = false
+  history.pushState({ ...history.state, modal: 'gallery-story' }, '', window.location.href)
+
   selectedIndex.value = index
   isStoryOpen.value = true
   progress.value = 0
   pausedProgress = 0
   isPaused.value = false
   isHolding.value = false
+  isStoryImageLoaded.value = false
   document.body.style.overflow = 'hidden'
-
-  // 모바일 뒤로가기 시 이전 웹페이지로 나가지 않고 스토리 레이어만 닫히도록 가상 히스토리 등록
-  history.pushState({ modal: 'gallery-story' }, '')
 
   runProgressAnim()
 }
@@ -170,9 +176,23 @@ const closeLightbox = (isFromPopState: boolean | Event = false) => {
   isHolding.value = false
   document.body.style.overflow = ''
 
-  // 닫기 버튼 또는 배경 클릭으로 닫을 때 쌓아둔 가상 히스토리 정리
-  if (isFromPopState !== true && history.state?.modal === 'gallery-story') {
+  const isPop = isFromPopState === true
+
+  if (!isPop && history.state?.modal === 'gallery-story' && !isNavigatingBack) {
+    isNavigatingBack = true
     history.back()
+    setTimeout(() => { isNavigatingBack = false }, 300)
+  }
+
+  // 모달을 열기 전의 스크롤 위치 보존 및 복원 (즉시 + rAF + 타이머 다중 보장)
+  if (typeof savedScrollY === 'number' && savedScrollY >= 0) {
+    window.scrollTo({ top: savedScrollY, behavior: 'instant' })
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: savedScrollY, behavior: 'instant' })
+      setTimeout(() => {
+        window.scrollTo({ top: savedScrollY, behavior: 'instant' })
+      }, 50)
+    })
   }
 }
 
@@ -181,6 +201,8 @@ const prevPhoto = () => {
   stopProgressAnim()
   progress.value = 0
   pausedProgress = 0
+  isPaused.value = false // 이전/다음 사진으로 이동 시 일시정지 해제 후 다시 재생
+  isStoryImageLoaded.value = false
   if (selectedIndex.value > 0) {
     selectedIndex.value = selectedIndex.value - 1
   } else {
@@ -194,6 +216,8 @@ const nextPhoto = () => {
   stopProgressAnim()
   progress.value = 0
   pausedProgress = 0
+  isPaused.value = false // 이전/다음 사진으로 이동 시 일시정지 해제 후 다시 재생
+  isStoryImageLoaded.value = false
   if (selectedIndex.value >= sortedPhotos.value.length - 1) {
     // 맨 마지막 사진에 도달했을 때 첫 번째 사진으로 가지 않고 닫힘
     closeLightbox()
@@ -307,6 +331,15 @@ const handlePopState = () => {
   if (selectedIndex.value !== null) {
     closeLightbox(true)
   }
+  if (typeof savedScrollY === 'number' && savedScrollY >= 0) {
+    window.scrollTo({ top: savedScrollY, behavior: 'instant' })
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: savedScrollY, behavior: 'instant' })
+      setTimeout(() => {
+        window.scrollTo({ top: savedScrollY, behavior: 'instant' })
+      }, 50)
+    })
+  }
 }
 
 onMounted(() => {
@@ -360,7 +393,6 @@ onUnmounted(() => {
           :alt="photo.caption || '웨딩 사진'"
           class="thumbnail-img"
           :class="{ 'is-loaded': loadedThumbnails[photo.id] && (!isMoreLoading || index < INITIAL_COUNT) }"
-          loading="lazy"
           decoding="async"
           draggable="false"
           @contextmenu.prevent
@@ -505,13 +537,21 @@ onUnmounted(() => {
 
           <!-- 3. Main Story Photo -->
           <div class="story-media-container">
+            <!-- Story Photo Skeleton Shimmer & Spinner Loader -->
+            <div v-if="!isStoryImageLoaded" class="story-skeleton">
+              <div class="skeleton-shimmer"></div>
+              <div class="story-spinner"></div>
+            </div>
+
             <Transition name="photo-fade" mode="out-in">
               <img
                 :key="sortedPhotos[selectedIndex].id"
                 :src="getOptimizedImageUrl(sortedPhotos[selectedIndex].url, 1200, 85)"
                 :alt="sortedPhotos[selectedIndex].caption || '웨딩 스토리 사진'"
                 class="story-image"
+                :class="{ 'is-loaded': isStoryImageLoaded }"
                 draggable="false"
+                @load="isStoryImageLoaded = true"
               />
             </Transition>
 
@@ -534,13 +574,6 @@ onUnmounted(() => {
               <span>{{ sortedPhotos[selectedIndex].caption }}</span>
             </div>
           </div>
-
-          <!-- 5. Hold/Pause Indicator -->
-          <Transition name="hold-fade">
-            <div v-if="isHolding" class="story-hold-indicator font-sans">
-              화면 정지됨
-            </div>
-          </Transition>
         </div>
 
         <!-- Desktop External Navigation Arrows -->
@@ -567,8 +600,6 @@ onUnmounted(() => {
   gap: 8px;
   margin-top: 28px;
   padding: 0 4px;
-  content-visibility: auto;
-  contain-intrinsic-size: 0 340px;
 }
 
 .thumbnail-card {
@@ -881,12 +912,57 @@ onUnmounted(() => {
   background: #000000;
 }
 
+.story-skeleton {
+  position: absolute;
+  inset: 0;
+  background: #181614;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.story-skeleton .skeleton-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+}
+
+.story-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2.5px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--gold-primary, #C8A97E);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  z-index: 3;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .story-image {
   width: 100%;
   height: 100%;
   object-fit: contain;
   user-select: none;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.story-image.is-loaded {
+  opacity: 1;
 }
 
 /* Tap Indicators on Desktop */

@@ -771,12 +771,15 @@ export async function uploadToGoogleDrive(
   return result.url
 }
 
-export function formatDirectMediaUrl(url: string): string {
+export function formatDirectMediaUrl(url: string, type?: 'image' | 'video'): string {
   if (!url) return ''
   // Google Drive view/open link -> direct image/media content link
   if (url.includes('drive.google.com')) {
     const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/)
     if (fileIdMatch && fileIdMatch[1]) {
+      if (type === 'video') {
+        return `https://drive.google.com/uc?export=download&id=${fileIdMatch[1]}`
+      }
       return `https://lh3.googleusercontent.com/d/${fileIdMatch[1]}`
     }
   }
@@ -801,7 +804,7 @@ export async function uploadLiveSnapMedia(file: File, onProgress?: (percent: num
         adminSettings.value.googleDriveFolderId,
         onProgress
       )
-      const directUrl = formatDirectMediaUrl(driveUrl)
+      const directUrl = formatDirectMediaUrl(driveUrl, isVideo ? 'video' : 'image')
       return { url: directUrl, type: isVideo ? 'video' : 'image' }
     } catch (err: any) {
       console.error('Google Drive upload failed:', err)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { Camera, Play, Pause, X, Upload, CheckCircle2, AlertCircle } from 'lucide-vue-next'
 import {
   liveSnaps,
@@ -180,11 +180,6 @@ const userUploadedSnaps = computed(() => {
   return liveSnaps.value.filter(s => !s.isHidden && !s.id.startsWith('snap-'))
 })
 
-// 사용자가 업로드한 사진이 1장 이상 있는지 여부
-const hasUserSnaps = computed(() => {
-  return userUploadedSnaps.value.length > 0
-})
-
 // 갤러리 섹션의 사진 중 6개를 선택하여 예시 스냅으로 사용 (기능 OFF 시 배경용)
 const galleryExampleSnaps = computed<LiveSnapItem[]>(() => {
   const source = (photos.value && photos.value.length > 0)
@@ -215,21 +210,6 @@ const galleryExampleSnaps = computed<LiveSnapItem[]>(() => {
   })
 })
 
-// 표시에 사용할 스냅 데이터
-// 1) 기능이 OFF일 때: 갤러리 사진 6장 (블러 처리된 배경)
-// 2) 기능이 ON일 때:
-//    - 사용자가 올린 사진이 있으면 사용자 업로드 사진 우선
-//    - 사용자가 올린 사진이 없으면 감성적인 "웨딩 일러스트 스냅" 6장 표시
-const currentDisplaySnaps = computed(() => {
-  if (!isUploadActive.value) {
-    return galleryExampleSnaps.value
-  }
-  if (hasUserSnaps.value) {
-    return userUploadedSnaps.value
-  }
-  return WEDDING_ILLUSTRATION_SNAPS
-})
-
 // Auto-scroll Infinite Columns
 const isPaused = ref(false)
 const togglePause = () => {
@@ -243,60 +223,107 @@ interface StreamCardItem {
   isExample: boolean
 }
 
-const MIN_COL_ITEMS = 3
-
 // Column streams (clean snap photos)
+const TARGET_ITEMS_PER_COL = 6
+
 const streamColumns = computed(() => {
-  const snaps = currentDisplaySnaps.value
-  const realCol1 = snaps.filter((_, i) => i % 2 === 0)
-  const realCol2 = snaps.filter((_, i) => i % 2 === 1)
-
-  const checkIsExample = (item: LiveSnapItem) => {
-    if (!isUploadActive.value) return true
-    return item.id.startsWith('illust-snap-') ||
-           item.id.startsWith('gallery-example-') ||
-           item.id.startsWith('fallback-') ||
-           !hasUserSnaps.value
-  }
-
-  const col1Base: StreamCardItem[] = realCol1.map((s, idx) => ({
-    id: s.id,
-    data: s,
-    aspectRatio: s.aspectRatio || (idx === 1 ? '1/1' : idx === 2 ? '3/2' : '4/5'),
-    isExample: checkIsExample(s)
-  }))
-
-  const col2Base: StreamCardItem[] = realCol2.map((s, idx) => ({
-    id: s.id,
-    data: s,
-    aspectRatio: s.aspectRatio || (idx === 0 ? '1/1' : idx === 2 ? '16/9' : '4/5'),
-    isExample: checkIsExample(s)
-  }))
-
-  // 사용자들이 사진을 올린 상태일 때: 열 균형 유지를 위해 웨딩 일러스트로 부족분 채움
-  if (isUploadActive.value && hasUserSnaps.value) {
-    const targetPerCol = Math.max(MIN_COL_ITEMS, realCol1.length, realCol2.length)
-    while (col1Base.length < targetPerCol) {
-      const fallbackSnap = WEDDING_ILLUSTRATION_SNAPS[col1Base.length % WEDDING_ILLUSTRATION_SNAPS.length]
-      col1Base.push({
-        id: `fallback-c1-${col1Base.length}`,
-        data: fallbackSnap,
-        aspectRatio: '4/5',
-        isExample: true
-      })
-    }
-    while (col2Base.length < targetPerCol) {
-      const fallbackSnap = WEDDING_ILLUSTRATION_SNAPS[(col2Base.length + 1) % WEDDING_ILLUSTRATION_SNAPS.length]
-      col2Base.push({
-        id: `fallback-c2-${col2Base.length}`,
-        data: fallbackSnap,
-        aspectRatio: '4/5',
-        isExample: true
-      })
+  // 1) 기능이 OFF일 때는 갤러리 사진 예시 분배
+  if (!isUploadActive.value) {
+    const snaps = galleryExampleSnaps.value
+    const col1 = snaps.filter((_, i) => i % 2 === 0)
+    const col2 = snaps.filter((_, i) => i % 2 === 1)
+    const col1Base = col1.map((s, idx) => ({
+      id: `off-c1-${idx}`,
+      data: s,
+      aspectRatio: s.aspectRatio || '4/5',
+      isExample: true
+    }))
+    const col2Base = col2.map((s, idx) => ({
+      id: `off-c2-${idx}`,
+      data: s,
+      aspectRatio: s.aspectRatio || '4/5',
+      isExample: true
+    }))
+    return {
+      col1: [...col1Base, ...col1Base],
+      col2: [...col2Base, ...col2Base]
     }
   }
 
-  // Duplicate for seamless translateY(-50%) infinite scroll
+  // 2) 기능이 ON일 때: 사용자가 업로드한 사진 + 웨딩 감성 일러스트 분배
+  // col1과 col2 간에 어떠한 예시 이미지도 절대 중복(겹침)되지 않도록 완전 분리된 풀 사용!
+  // Pool 1 (짝수 인덱스 7종): [0, 2, 4, 6, 8, 10, 12]
+  // Pool 2 (홀수 인덱스 7종): [1, 3, 5, 7, 9, 11, 13]
+  const poolCol1 = WEDDING_ILLUSTRATION_SNAPS.filter((_, i) => i % 2 === 0)
+  const poolCol2 = WEDDING_ILLUSTRATION_SNAPS.filter((_, i) => i % 2 === 1)
+
+  const userSnaps = userUploadedSnaps.value
+  const col1Base: StreamCardItem[] = []
+  const col2Base: StreamCardItem[] = []
+
+  // 사용자 업로드 스냅을 좌/우 열에 번갈아가며 배치
+  userSnaps.forEach((snap, idx) => {
+    const card: StreamCardItem = {
+      id: snap.id,
+      data: snap,
+      aspectRatio: snap.aspectRatio || (idx % 3 === 0 ? '4/5' : idx % 3 === 1 ? '1/1' : '3/2'),
+      isExample: false
+    }
+    if (idx % 2 === 0) {
+      col1Base.push(card)
+    } else {
+      col2Base.push(card)
+    }
+  })
+
+  // 자연스러운 무한 스크롤 높이를 위해 각 열당 최소 목표 개수 확보
+  const targetCount = Math.max(TARGET_ITEMS_PER_COL, col1Base.length, col2Base.length)
+
+  // col1의 부족분을 poolCol1의 고유 일러스트로 채움 (중복 없이 순차적 할당)
+  let pool1Idx = 0
+  while (col1Base.length < targetCount && pool1Idx < poolCol1.length) {
+    const illust = poolCol1[pool1Idx++]
+    col1Base.push({
+      id: `illust-c1-${illust.id}`,
+      data: illust,
+      aspectRatio: illust.aspectRatio || '4/5',
+      isExample: true
+    })
+  }
+
+  // col2의 부족분을 poolCol2의 고유 일러스트로 채움 (중복 없이 순차적 할당)
+  let pool2Idx = 0
+  while (col2Base.length < targetCount && pool2Idx < poolCol2.length) {
+    const illust = poolCol2[pool2Idx++]
+    col2Base.push({
+      id: `illust-c2-${illust.id}`,
+      data: illust,
+      aspectRatio: illust.aspectRatio || '4/5',
+      isExample: true
+    })
+  }
+
+  // 좌우 열 높이 균형 맞추기 (남은 고유 일러스트 활용)
+  while (col1Base.length < col2Base.length && pool1Idx < poolCol1.length) {
+    const illust = poolCol1[pool1Idx++]
+    col1Base.push({
+      id: `illust-c1-${illust.id}`,
+      data: illust,
+      aspectRatio: illust.aspectRatio || '4/5',
+      isExample: true
+    })
+  }
+  while (col2Base.length < col1Base.length && pool2Idx < poolCol2.length) {
+    const illust = poolCol2[pool2Idx++]
+    col2Base.push({
+      id: `illust-c2-${illust.id}`,
+      data: illust,
+      aspectRatio: illust.aspectRatio || '4/5',
+      isExample: true
+    })
+  }
+
+  // 매끄러운 50% 무한 스크롤 루프를 위해 복제 반환
   return {
     col1: [...col1Base, ...col1Base],
     col2: [...col2Base, ...col2Base]
@@ -306,17 +333,30 @@ const streamColumns = computed(() => {
 const col1Items = computed(() => streamColumns.value.col1)
 const col2Items = computed(() => streamColumns.value.col2)
 
+const loadedSnapMedia = ref<Record<string, boolean>>({})
+
+const onMediaLoaded = (id: string) => {
+  loadedSnapMedia.value[id] = true
+}
+
+let isNavigatingBack = false
+let savedLiveSnapScrollY = 0
+
 function openCompleteModal() {
   isCompleteModalOpen.value = true
-  history.pushState({ modal: 'livesnap-complete' }, '')
+  isNavigatingBack = false
+  history.pushState({ ...history.state, modal: 'livesnap-complete' }, '', window.location.href)
 }
 
 function handleCompleteConfirm(isFromPopState: boolean | Event = false) {
+  if (!isCompleteModalOpen.value) return
   isCompleteModalOpen.value = false
   message.value = ''
   senderName.value = ''
-  if (isFromPopState !== true && history.state?.modal === 'livesnap-complete') {
+  if (isFromPopState !== true && history.state?.modal === 'livesnap-complete' && !isNavigatingBack) {
+    isNavigatingBack = true
     history.back()
+    setTimeout(() => { isNavigatingBack = false }, 300)
   }
   setTimeout(() => {
     const el = document.querySelector('.livesnap-section')
@@ -334,9 +374,21 @@ const handlePopState = () => {
   } else if (isUploadModalOpen.value) {
     closeUploadModal(true)
   }
+  if (typeof savedLiveSnapScrollY === 'number' && savedLiveSnapScrollY >= 0) {
+    window.scrollTo({ top: savedLiveSnapScrollY, behavior: 'instant' })
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: savedLiveSnapScrollY, behavior: 'instant' })
+      setTimeout(() => {
+        window.scrollTo({ top: savedLiveSnapScrollY, behavior: 'instant' })
+      }, 50)
+    })
+  }
 }
 
-const handleImageError = (e: Event) => {
+const handleImageError = (e: Event, id?: string) => {
+  if (id) {
+    loadedSnapMedia.value[id] = true
+  }
   const target = e.target as HTMLImageElement | null
   if (target && !target.src.includes('unsplash.com')) {
     target.src = 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=600&q=80'
@@ -358,16 +410,52 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 
 // Lightbox State
 const selectedSnap = ref<LiveSnapItem | null>(null)
+const lightboxVideoRef = ref<HTMLVideoElement | null>(null)
+const isLightboxMediaLoaded = ref(false)
 
 function openSnapLightbox(snap: LiveSnapItem) {
+  savedLiveSnapScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0
+  isLightboxMediaLoaded.value = false
   selectedSnap.value = snap
-  history.pushState({ modal: 'livesnap-lightbox' }, '')
+  isNavigatingBack = false
+  history.pushState({ ...history.state, modal: 'livesnap-lightbox' }, '', window.location.href)
+
+  if (snap.type === 'video') {
+    nextTick(() => {
+      if (lightboxVideoRef.value) {
+        lightboxVideoRef.value.currentTime = 0
+        const playPromise = lightboxVideoRef.value.play()
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.log('Video play catch:', err)
+          })
+        }
+      }
+    })
+  }
 }
 
 function closeSnapLightbox(isFromPopState: boolean | Event = false) {
+  if (!selectedSnap.value) return
+  if (lightboxVideoRef.value) {
+    try {
+      lightboxVideoRef.value.pause()
+    } catch (_) {}
+  }
   selectedSnap.value = null
-  if (isFromPopState !== true && history.state?.modal === 'livesnap-lightbox') {
+  if (isFromPopState !== true && history.state?.modal === 'livesnap-lightbox' && !isNavigatingBack) {
+    isNavigatingBack = true
     history.back()
+    setTimeout(() => { isNavigatingBack = false }, 300)
+  }
+  if (typeof savedLiveSnapScrollY === 'number' && savedLiveSnapScrollY >= 0) {
+    window.scrollTo({ top: savedLiveSnapScrollY, behavior: 'instant' })
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: savedLiveSnapScrollY, behavior: 'instant' })
+      setTimeout(() => {
+        window.scrollTo({ top: savedLiveSnapScrollY, behavior: 'instant' })
+      }, 50)
+    })
   }
 }
 
@@ -389,6 +477,8 @@ onUnmounted(() => {
 
 function handleSnapClick(snap?: LiveSnapItem, _isExample?: boolean) {
   if (!snap) return
+  // 클릭 시 자동 스크롤 일시정지
+  isPaused.value = true
   // 비디오 파일인 경우 항상 라이트박스로 재생 시청 가능
   // 일반 사진/일러스트인 경우 현장 스냅 기능이 ON일 때 라이트박스 열림
   if (snap.type === 'video' || isUploadActive.value) {
@@ -405,17 +495,27 @@ function handleUploadButtonClick() {
 }
 
 function openUploadModal() {
+  savedLiveSnapScrollY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0
   resetForm()
   isUploadModalOpen.value = true
-  history.pushState({ modal: 'livesnap-upload' }, '')
+  isNavigatingBack = false
+  history.pushState({ ...history.state, modal: 'livesnap-upload' }, '', window.location.href)
 }
 
 function closeUploadModal(isFromPopState: boolean | Event = false) {
   if (isUploading.value) return
+  if (!isUploadModalOpen.value) return
   isUploadModalOpen.value = false
   resetForm()
-  if (isFromPopState !== true && history.state?.modal === 'livesnap-upload') {
+  if (isFromPopState !== true && history.state?.modal === 'livesnap-upload' && !isNavigatingBack) {
+    isNavigatingBack = true
     history.back()
+    setTimeout(() => { isNavigatingBack = false }, 300)
+  }
+  if (savedLiveSnapScrollY > 0) {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: savedLiveSnapScrollY, behavior: 'instant' })
+    })
   }
 }
 
@@ -589,18 +689,30 @@ function formatRelativeTime(isoString: string): string {
                     }"
                     @click="handleSnapClick(item.data, item.isExample)"
                   >
+                    <!-- Skeleton Placeholder while loading -->
+                    <div
+                      v-if="!loadedSnapMedia[item.id]"
+                      class="snap-card-skeleton"
+                    >
+                      <div class="snap-skeleton-shimmer"></div>
+                    </div>
+
                     <img
                       v-if="item.data.type === 'image'"
-                      :src="formatDirectMediaUrl(item.data.url)"
+                      :src="formatDirectMediaUrl(item.data.url, 'image')"
                       alt="현장 스냅"
                       decoding="async"
                       class="snap-img"
-                      :class="{ 'is-example-blur': !isUploadActive }"
-                      @error="handleImageError"
+                      :class="{
+                        'is-loaded': loadedSnapMedia[item.id],
+                        'is-example-blur': !isUploadActive
+                      }"
+                      @load="onMediaLoaded(item.id)"
+                      @error="handleImageError($event, item.id)"
                     />
                     <div v-else class="snap-video-thumb">
                       <video
-                        :src="formatDirectMediaUrl(item.data.url)"
+                        :src="formatDirectMediaUrl(item.data.url, 'video')"
                         autoplay
                         loop
                         muted
@@ -608,6 +720,9 @@ function formatRelativeTime(isoString: string): string {
                         webkit-playsinline
                         preload="auto"
                         class="snap-video"
+                        :class="{ 'is-loaded': loadedSnapMedia[item.id] }"
+                        @loadeddata="onMediaLoaded(item.id)"
+                        @canplay="onMediaLoaded(item.id)"
                         @loadedmetadata="handleVideoLoaded"
                       ></video>
                       <div class="video-indicator-badge">
@@ -639,18 +754,30 @@ function formatRelativeTime(isoString: string): string {
                     }"
                     @click="handleSnapClick(item.data, item.isExample)"
                   >
+                    <!-- Skeleton Placeholder while loading -->
+                    <div
+                      v-if="!loadedSnapMedia[item.id]"
+                      class="snap-card-skeleton"
+                    >
+                      <div class="snap-skeleton-shimmer"></div>
+                    </div>
+
                     <img
                       v-if="item.data.type === 'image'"
-                      :src="formatDirectMediaUrl(item.data.url)"
+                      :src="formatDirectMediaUrl(item.data.url, 'image')"
                       alt="현장 스냅"
                       decoding="async"
                       class="snap-img"
-                      :class="{ 'is-example-blur': !isUploadActive }"
-                      @error="handleImageError"
+                      :class="{
+                        'is-loaded': loadedSnapMedia[item.id],
+                        'is-example-blur': !isUploadActive
+                      }"
+                      @load="onMediaLoaded(item.id)"
+                      @error="handleImageError($event, item.id)"
                     />
                     <div v-else class="snap-video-thumb">
                       <video
-                        :src="formatDirectMediaUrl(item.data.url)"
+                        :src="formatDirectMediaUrl(item.data.url, 'video')"
                         autoplay
                         loop
                         muted
@@ -658,6 +785,9 @@ function formatRelativeTime(isoString: string): string {
                         webkit-playsinline
                         preload="auto"
                         class="snap-video"
+                        :class="{ 'is-loaded': loadedSnapMedia[item.id] }"
+                        @loadeddata="onMediaLoaded(item.id)"
+                        @canplay="onMediaLoaded(item.id)"
                         @loadedmetadata="handleVideoLoaded"
                       ></video>
                       <div class="video-indicator-badge">
@@ -722,9 +852,9 @@ function formatRelativeTime(isoString: string): string {
     <!-- Upload Modal (브라우저 전체화면 텔레포트) -->
     <Teleport to="body">
       <Transition name="modal-fade">
-        <div v-if="isUploadModalOpen" class="modal-backdrop" @click="closeUploadModal()">
+        <div v-if="isUploadModalOpen" class="modal-backdrop" @click.self="closeUploadModal()" @touchmove.prevent>
           <div class="modal-content font-sans" @click.stop>
-            <button class="modal-close-btn" @click="closeUploadModal()" :disabled="isUploading">
+            <button class="modal-close-btn" @click.stop="closeUploadModal()" :disabled="isUploading">
             <X :size="18" />
           </button>
 
@@ -860,14 +990,14 @@ function formatRelativeTime(isoString: string): string {
     <!-- Upload Complete Notification Modal (브라우저 전체화면 텔레포트) -->
     <Teleport to="body">
       <Transition name="modal-fade">
-        <div v-if="isCompleteModalOpen" class="modal-backdrop" @click="handleCompleteConfirm()">
+        <div v-if="isCompleteModalOpen" class="modal-backdrop" @click.self="handleCompleteConfirm()" @touchmove.prevent>
           <div class="modal-content complete-modal font-sans" @click.stop>
             <div class="complete-icon-circle">
               <CheckCircle2 :size="36" class="complete-check-icon" />
             </div>
             <h3 class="complete-title font-serif">업로드가 완료되었습니다</h3>
             <p class="complete-desc">소중한 순간을 함께 공유해주셔서 진심으로 감사드립니다.</p>
-            <button class="btn-primary complete-btn font-sans" @click="handleCompleteConfirm()">
+            <button class="btn-primary complete-btn font-sans" @click.stop="handleCompleteConfirm()">
               확인
             </button>
           </div>
@@ -881,29 +1011,41 @@ function formatRelativeTime(isoString: string): string {
         <div
           v-if="selectedSnap"
           class="lightbox-backdrop"
-          @click="closeSnapLightbox()"
+          @click.self="closeSnapLightbox()"
           @touchmove.prevent
         >
-          <button class="lightbox-close-btn" @click="closeSnapLightbox()">
+          <button class="lightbox-close-btn" @click.stop="closeSnapLightbox()">
             <X :size="24" />
           </button>
 
           <div class="lightbox-dialog" @click.stop>
             <div class="lightbox-media-container">
+              <!-- Skeleton Loader while media is loading -->
+              <div v-if="!isLightboxMediaLoaded" class="lightbox-skeleton">
+                <div class="lightbox-skeleton-shimmer"></div>
+                <div class="lightbox-spinner"></div>
+              </div>
+
               <img
                 v-if="selectedSnap.type === 'image'"
-                :src="formatDirectMediaUrl(selectedSnap.url)"
+                :src="formatDirectMediaUrl(selectedSnap.url, 'image')"
                 alt="현장 스냅 확대"
                 class="lightbox-img"
+                :class="{ 'is-loaded': isLightboxMediaLoaded }"
+                @load="isLightboxMediaLoaded = true"
               />
               <video
                 v-else
-                :src="formatDirectMediaUrl(selectedSnap.url)"
+                ref="lightboxVideoRef"
+                :src="formatDirectMediaUrl(selectedSnap.url, 'video')"
                 controls
                 autoplay
                 playsinline
                 webkit-playsinline
                 class="lightbox-video"
+                :class="{ 'is-loaded': isLightboxMediaLoaded }"
+                @loadeddata="isLightboxMediaLoaded = true"
+                @canplay="isLightboxMediaLoaded = true"
               ></video>
             </div>
 
@@ -1322,6 +1464,37 @@ function formatRelativeTime(isoString: string): string {
   z-index: 3;
 }
 
+/* Skeleton shimmer placeholder for snap card loading */
+.snap-card-skeleton {
+  position: absolute;
+  inset: 0;
+  background: #EFE7DA;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.snap-skeleton-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(239, 231, 218, 0) 0%,
+    rgba(255, 255, 255, 0.75) 50%,
+    rgba(239, 231, 218, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: snapSkeletonShimmer 1.4s infinite ease-in-out;
+}
+
+@keyframes snapSkeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 .snap-img {
   position: absolute;
   inset: 0;
@@ -1329,7 +1502,12 @@ function formatRelativeTime(isoString: string): string {
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: opacity 0.2s ease, filter 0.3s ease, transform 0.3s ease;
+  opacity: 0;
+  transition: opacity 0.35s ease, filter 0.3s ease, transform 0.3s ease;
+}
+
+.snap-img.is-loaded {
+  opacity: 1;
 }
 
 .snap-img.is-example-blur {
@@ -1361,6 +1539,12 @@ function formatRelativeTime(isoString: string): string {
   object-fit: cover;
   display: block;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.snap-video.is-loaded {
+  opacity: 1;
 }
 
 .video-indicator-badge {
@@ -1728,7 +1912,9 @@ function formatRelativeTime(isoString: string): string {
 }
 
 .lightbox-media-container {
+  position: relative;
   width: 100%;
+  min-height: 240px;
   max-height: 70vh;
   display: flex;
   align-items: center;
@@ -1738,15 +1924,61 @@ function formatRelativeTime(isoString: string): string {
   background: #000000;
 }
 
+.lightbox-skeleton {
+  position: absolute;
+  inset: 0;
+  background: #181614;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.lightbox-skeleton-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+}
+
+.lightbox-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2.5px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--gold-primary, #C8A97E);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  z-index: 3;
+}
+
 .lightbox-img {
   max-width: 100%;
   max-height: 70vh;
   object-fit: contain;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.lightbox-img.is-loaded {
+  opacity: 1;
 }
 
 .lightbox-video {
   max-width: 100%;
   max-height: 70vh;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.lightbox-video.is-loaded {
+  opacity: 1;
 }
 
 .lightbox-caption {
