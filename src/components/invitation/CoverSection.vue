@@ -110,14 +110,22 @@ const formattedDate = computed(() => {
 
 <style scoped>
 .cover-container {
-  padding: 44px 20px 36px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 48px 20px 40px;
   text-align: center;
   position: relative;
   background-color: var(--bg-ivory);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  box-sizing: border-box;
 }
 
 .header-tagline {
-  margin-bottom: 24px;
+  margin-bottom: 2px;
 }
 
 .sub-label {
@@ -137,13 +145,18 @@ const formattedDate = computed(() => {
 
 .photo-frame-wrapper {
   padding: 0 10px;
-  margin-bottom: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 325px;
 }
 
 .photo-frame {
   position: relative;
   width: 100%;
   aspect-ratio: 4 / 5;
+  max-height: 45vh;
   border-radius: 180px 180px 16px 16px;
   overflow: hidden;
   box-shadow: 0 16px 36px rgba(110, 93, 76, 0.14);
@@ -152,7 +165,8 @@ const formattedDate = computed(() => {
 }
 
 .cover-loading-screen {
-  min-height: 80vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
