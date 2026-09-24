@@ -303,32 +303,13 @@ onUnmounted(() => {
   width: 100%;
   box-sizing: border-box;
   opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.85s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.85s cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: opacity, transform;
+  transition: opacity 0.65s ease;
+  will-change: opacity;
 }
 
 .invitation-section-wrapper.is-visible,
 .invitation-section-wrapper:first-child {
   opacity: 1;
-  transform: translateY(0);
-}
-
-/* 첫 번째 섹션 (Cover) 화면 가득 차게 */
-.invitation-section-wrapper:first-child {
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* 마지막 섹션 (ShareFooter) 화면 가득 차게 */
-.invitation-section-wrapper:last-of-type {
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
 }
 
 @media (prefers-reduced-motion: reduce) {

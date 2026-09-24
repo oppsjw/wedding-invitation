@@ -110,18 +110,16 @@ const formattedDate = computed(() => {
 
 <style scoped>
 .cover-container {
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding: 48px 20px 40px;
+  padding: 56px 20px 48px;
   text-align: center;
   position: relative;
   background-color: var(--bg-ivory);
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
   box-sizing: border-box;
+  width: 100%;
 }
 
 .header-tagline {

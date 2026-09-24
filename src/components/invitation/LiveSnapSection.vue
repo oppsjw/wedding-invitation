@@ -96,29 +96,49 @@ let topIndicatorTimer: any = null
 const triggerTopReachedIndicator = () => {
   if (showTopReachedIndicator.value) return
   showTopReachedIndicator.value = true
-  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-    try { navigator.vibrate(25) } catch (_) {}
-  }
   if (topIndicatorTimer) clearTimeout(topIndicatorTimer)
   topIndicatorTimer = setTimeout(() => {
     showTopReachedIndicator.value = false
-  }, 1600)
+  }, 1400)
+}
+
+const showBottomReachedIndicator = ref(false)
+let bottomIndicatorTimer: any = null
+
+const triggerBottomReachedIndicator = () => {
+  if (showBottomReachedIndicator.value) return
+  showBottomReachedIndicator.value = true
+  if (bottomIndicatorTimer) clearTimeout(bottomIndicatorTimer)
+  bottomIndicatorTimer = setTimeout(() => {
+    showBottomReachedIndicator.value = false
+  }, 1400)
 }
 
 const onViewportScroll = () => {
   const el = scrollViewportRef.value
   if (!el) return
 
-  const halfHeight = el.scrollHeight / 2
-  if (halfHeight > 0 && el.scrollTop >= halfHeight) {
-    el.scrollTop -= halfHeight
+  // 사용자가 직접 만지지 않는 평상시 자동스크롤일 때만 무한 루프 리셋 (중간 점프)
+  if (!isUserInteracting.value) {
+    const halfHeight = el.scrollHeight / 2
+    if (halfHeight > 0 && el.scrollTop >= halfHeight) {
+      el.scrollTop -= halfHeight
+    }
   }
 
-  // 사용자가 위로 스크롤하여 맨 위(최신 스냅 처음)에 도달했을 때 끝 인디케이터 표시
+  // 사용자가 위로 스크롤하여 맨 위(최신 스냅 처음)에 도달했을 때 끝 표식
   if (el.scrollTop <= 2 && isUserInteracting.value) {
     triggerTopReachedIndicator()
   } else if (el.scrollTop > 18) {
     showTopReachedIndicator.value = false
+  }
+
+  // 사용자가 아래로 스크롤하여 맨 아래(스냅 목록 끝)에 도달했을 때 끝 표식
+  const isBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4
+  if (isBottom && isUserInteracting.value) {
+    triggerBottomReachedIndicator()
+  } else if (el.scrollTop + el.clientHeight < el.scrollHeight - 20) {
+    showBottomReachedIndicator.value = false
   }
 }
 
@@ -140,6 +160,7 @@ const playAllPreviewVideos = () => {
 }
 
 onMounted(() => {
+  window.addEventListener('popstate', handlePopState)
   initCloudSubscriptions()
   startAutoScroll()
   setTimeout(playAllPreviewVideos, 350)
@@ -285,16 +306,34 @@ const streamColumns = computed(() => {
 const col1Items = computed(() => streamColumns.value.col1)
 const col2Items = computed(() => streamColumns.value.col2)
 
-function handleCompleteConfirm() {
+function openCompleteModal() {
+  isCompleteModalOpen.value = true
+  history.pushState({ modal: 'livesnap-complete' }, '')
+}
+
+function handleCompleteConfirm(isFromPopState: boolean | Event = false) {
   isCompleteModalOpen.value = false
   message.value = ''
   senderName.value = ''
+  if (isFromPopState !== true && history.state?.modal === 'livesnap-complete') {
+    history.back()
+  }
   setTimeout(() => {
     const el = document.querySelector('.livesnap-section')
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, 120)
+}
+
+const handlePopState = () => {
+  if (selectedSnap.value) {
+    closeSnapLightbox(true)
+  } else if (isCompleteModalOpen.value) {
+    handleCompleteConfirm(true)
+  } else if (isUploadModalOpen.value) {
+    closeUploadModal(true)
+  }
 }
 
 const handleImageError = (e: Event) => {
@@ -320,6 +359,18 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 // Lightbox State
 const selectedSnap = ref<LiveSnapItem | null>(null)
 
+function openSnapLightbox(snap: LiveSnapItem) {
+  selectedSnap.value = snap
+  history.pushState({ modal: 'livesnap-lightbox' }, '')
+}
+
+function closeSnapLightbox(isFromPopState: boolean | Event = false) {
+  selectedSnap.value = null
+  if (isFromPopState !== true && history.state?.modal === 'livesnap-lightbox') {
+    history.back()
+  }
+}
+
 // Hide navigation menu & prevent body scrolling when any lightbox or modal is active
 watch([selectedSnap, isUploadModalOpen, isCompleteModalOpen], ([snap, upload, complete]) => {
   const isOpen = Boolean(snap || upload || complete)
@@ -328,9 +379,12 @@ watch([selectedSnap, isUploadModalOpen, isCompleteModalOpen], ([snap, upload, co
 })
 
 onUnmounted(() => {
+  window.removeEventListener('popstate', handlePopState)
   isStoryOpen.value = false
   document.body.style.overflow = ''
   stopAutoScroll()
+  if (topIndicatorTimer) clearTimeout(topIndicatorTimer)
+  if (bottomIndicatorTimer) clearTimeout(bottomIndicatorTimer)
 })
 
 function handleSnapClick(snap?: LiveSnapItem, _isExample?: boolean) {
@@ -338,7 +392,7 @@ function handleSnapClick(snap?: LiveSnapItem, _isExample?: boolean) {
   // 비디오 파일인 경우 항상 라이트박스로 재생 시청 가능
   // 일반 사진/일러스트인 경우 현장 스냅 기능이 ON일 때 라이트박스 열림
   if (snap.type === 'video' || isUploadActive.value) {
-    selectedSnap.value = snap
+    openSnapLightbox(snap)
   }
 }
 
@@ -353,12 +407,16 @@ function handleUploadButtonClick() {
 function openUploadModal() {
   resetForm()
   isUploadModalOpen.value = true
+  history.pushState({ modal: 'livesnap-upload' }, '')
 }
 
-function closeUploadModal() {
+function closeUploadModal(isFromPopState: boolean | Event = false) {
   if (isUploading.value) return
   isUploadModalOpen.value = false
   resetForm()
+  if (isFromPopState !== true && history.state?.modal === 'livesnap-upload') {
+    history.back()
+  }
 }
 
 function resetForm() {
@@ -432,8 +490,8 @@ async function handleUploadSubmit() {
       fileSize: selectedFile.value.size
     })
 
-    closeUploadModal()
-    isCompleteModalOpen.value = true
+    closeUploadModal(true)
+    openCompleteModal()
   } catch (err: any) {
     errorMessage.value = err.message || '업로드 중 오류가 발생했습니다. 다시 시도해주세요.'
   } finally {
@@ -492,11 +550,13 @@ function formatRelativeTime(isoString: string): string {
       </div>
 
       <div class="scroll-viewport-wrapper">
-        <!-- Top Reached Boundary Indicator Badge -->
-        <Transition name="indicator-fade">
-          <div v-if="showTopReachedIndicator" class="top-reached-indicator-wrap font-sans">
-            <div class="top-reached-indicator-line"></div>
-            <span class="top-reached-badge">✦ 최신 스냅 목록의 처음입니다</span>
+        <!-- Top Reached Boundary Indicator Mark -->
+        <Transition name="indicator-fade-top">
+          <div v-if="showTopReachedIndicator" class="top-reached-indicator-wrap" aria-hidden="true">
+            <div class="reached-indicator-mark">
+              <div class="reached-indicator-line"></div>
+              <div class="reached-indicator-pip"></div>
+            </div>
           </div>
         </Transition>
 
@@ -616,6 +676,16 @@ function formatRelativeTime(isoString: string): string {
           </div>
         </div>
 
+        <!-- Bottom Reached Boundary Indicator Mark -->
+        <Transition name="indicator-fade-bottom">
+          <div v-if="showBottomReachedIndicator" class="bottom-reached-indicator-wrap" aria-hidden="true">
+            <div class="reached-indicator-mark">
+              <div class="reached-indicator-line"></div>
+              <div class="reached-indicator-pip"></div>
+            </div>
+          </div>
+        </Transition>
+
         <!-- Frosted Blurred Overlay covering the scrolling area before activation (Fixed in viewport wrapper) -->
         <div v-if="!isUploadActive" class="snap-scroll-frosted-overlay">
           <div class="frosted-overlay-card font-sans">
@@ -649,11 +719,12 @@ function formatRelativeTime(isoString: string): string {
       </div>
     </div>
 
-    <!-- Upload Modal -->
-    <Transition name="modal-fade">
-      <div v-if="isUploadModalOpen" class="modal-backdrop" @click="closeUploadModal">
-        <div class="modal-content font-sans" @click.stop>
-          <button class="modal-close-btn" @click="closeUploadModal" :disabled="isUploading">
+    <!-- Upload Modal (브라우저 전체화면 텔레포트) -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="isUploadModalOpen" class="modal-backdrop" @click="closeUploadModal()">
+          <div class="modal-content font-sans" @click.stop>
+            <button class="modal-close-btn" @click="closeUploadModal()" :disabled="isUploading">
             <X :size="18" />
           </button>
 
@@ -784,64 +855,69 @@ function formatRelativeTime(isoString: string): string {
         </div>
       </div>
     </Transition>
+    </Teleport>
 
-    <!-- Upload Complete Notification Modal -->
-    <Transition name="modal-fade">
-      <div v-if="isCompleteModalOpen" class="modal-backdrop" @click="handleCompleteConfirm">
-        <div class="modal-content complete-modal font-sans" @click.stop>
-          <div class="complete-icon-circle">
-            <CheckCircle2 :size="36" class="complete-check-icon" />
-          </div>
-          <h3 class="complete-title font-serif">업로드가 완료되었습니다</h3>
-          <p class="complete-desc">소중한 순간을 함께 공유해주셔서 진심으로 감사드립니다.</p>
-          <button class="btn-primary complete-btn font-sans" @click="handleCompleteConfirm">
-            확인
-          </button>
-        </div>
-      </div>
-    </Transition>
-
-    <!-- Full Lightbox Modal -->
-    <Transition name="modal-fade">
-      <div
-        v-if="selectedSnap"
-        class="lightbox-backdrop"
-        @click="selectedSnap = null"
-        @touchmove.prevent
-      >
-        <button class="lightbox-close-btn" @click="selectedSnap = null">
-          <X :size="24" />
-        </button>
-
-        <div class="lightbox-dialog" @click.stop>
-          <div class="lightbox-media-container">
-            <img
-              v-if="selectedSnap.type === 'image'"
-              :src="formatDirectMediaUrl(selectedSnap.url)"
-              alt="현장 스냅 확대"
-              class="lightbox-img"
-            />
-            <video
-              v-else
-              :src="formatDirectMediaUrl(selectedSnap.url)"
-              controls
-              autoplay
-              playsinline
-              webkit-playsinline
-              class="lightbox-video"
-            ></video>
-          </div>
-
-          <div v-if="selectedSnap.senderName || selectedSnap.message" class="lightbox-caption">
-            <div v-if="selectedSnap.senderName" class="caption-header">
-              <span class="caption-author">{{ selectedSnap.senderName }}</span>
-              <span class="caption-time">{{ formatRelativeTime(selectedSnap.createdAt) }}</span>
+    <!-- Upload Complete Notification Modal (브라우저 전체화면 텔레포트) -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="isCompleteModalOpen" class="modal-backdrop" @click="handleCompleteConfirm()">
+          <div class="modal-content complete-modal font-sans" @click.stop>
+            <div class="complete-icon-circle">
+              <CheckCircle2 :size="36" class="complete-check-icon" />
             </div>
-            <p v-if="selectedSnap.message" class="caption-body font-sans">{{ selectedSnap.message }}</p>
+            <h3 class="complete-title font-serif">업로드가 완료되었습니다</h3>
+            <p class="complete-desc">소중한 순간을 함께 공유해주셔서 진심으로 감사드립니다.</p>
+            <button class="btn-primary complete-btn font-sans" @click="handleCompleteConfirm()">
+              확인
+            </button>
           </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
+
+    <!-- Full Lightbox Modal (브라우저 전체화면 텔레포트) -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div
+          v-if="selectedSnap"
+          class="lightbox-backdrop"
+          @click="closeSnapLightbox()"
+          @touchmove.prevent
+        >
+          <button class="lightbox-close-btn" @click="closeSnapLightbox()">
+            <X :size="24" />
+          </button>
+
+          <div class="lightbox-dialog" @click.stop>
+            <div class="lightbox-media-container">
+              <img
+                v-if="selectedSnap.type === 'image'"
+                :src="formatDirectMediaUrl(selectedSnap.url)"
+                alt="현장 스냅 확대"
+                class="lightbox-img"
+              />
+              <video
+                v-else
+                :src="formatDirectMediaUrl(selectedSnap.url)"
+                controls
+                autoplay
+                playsinline
+                webkit-playsinline
+                class="lightbox-video"
+              ></video>
+            </div>
+
+            <div v-if="selectedSnap.senderName || selectedSnap.message" class="lightbox-caption">
+              <div v-if="selectedSnap.senderName" class="caption-header">
+                <span class="caption-author">{{ selectedSnap.senderName }}</span>
+                <span class="caption-time">{{ formatRelativeTime(selectedSnap.createdAt) }}</span>
+              </div>
+              <p v-if="selectedSnap.message" class="caption-body font-sans">{{ selectedSnap.message }}</p>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </section>
 </template>
 
@@ -949,50 +1025,72 @@ function formatRelativeTime(isoString: string): string {
   mask-image: linear-gradient(to bottom, black 0%, black 92%, transparent 100%);
 }
 
-/* Top Reached Scroll Boundary Indicator */
+/* Top & Bottom Reached Scroll Boundary Indicators (No text badge, clean gold mark) */
 .top-reached-indicator-wrap {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
+  justify-content: center;
   pointer-events: none;
   z-index: 25;
 }
 
-.top-reached-indicator-line {
+.bottom-reached-indicator-wrap {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 25;
+}
+
+.reached-indicator-mark {
   width: 100%;
-  height: 3px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reached-indicator-line {
+  width: 100%;
+  height: 2.5px;
   background: linear-gradient(90deg, transparent 0%, var(--gold-primary, #C5A059) 50%, transparent 100%);
-  box-shadow: 0 1px 8px rgba(197, 160, 89, 0.7);
+  box-shadow: 0 0 10px rgba(197, 160, 89, 0.85);
 }
 
-.top-reached-badge {
-  margin-top: 8px;
-  background: rgba(45, 41, 38, 0.88);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  color: #FFFFFF;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  padding: 4px 14px;
+.reached-indicator-pip {
+  position: absolute;
+  width: 24px;
+  height: 4.5px;
+  background: var(--gold-primary, #C5A059);
   border-radius: 9999px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 10px rgba(197, 160, 89, 0.95);
 }
 
-.indicator-fade-enter-active,
-.indicator-fade-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+.indicator-fade-top-enter-active,
+.indicator-fade-top-leave-active,
+.indicator-fade-bottom-enter-active,
+.indicator-fade-bottom-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
-.indicator-fade-enter-from,
-.indicator-fade-leave-to {
+.indicator-fade-top-enter-from,
+.indicator-fade-top-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(-6px);
+}
+
+.indicator-fade-bottom-enter-from,
+.indicator-fade-bottom-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 /* Floating Overlay over the scrolling area (Fixed over the viewport so it never scrolls up) */

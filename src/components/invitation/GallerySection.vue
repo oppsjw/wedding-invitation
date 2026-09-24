@@ -155,16 +155,25 @@ const openLightbox = (index: number) => {
   isPaused.value = false
   isHolding.value = false
   document.body.style.overflow = 'hidden'
+
+  // 모바일 뒤로가기 시 이전 웹페이지로 나가지 않고 스토리 레이어만 닫히도록 가상 히스토리 등록
+  history.pushState({ modal: 'gallery-story' }, '')
+
   runProgressAnim()
 }
 
-const closeLightbox = () => {
+const closeLightbox = (isFromPopState: boolean | Event = false) => {
   stopProgressAnim()
   clearTimeout(holdTimer)
   selectedIndex.value = null
   isStoryOpen.value = false
   isHolding.value = false
   document.body.style.overflow = ''
+
+  // 닫기 버튼 또는 배경 클릭으로 닫을 때 쌓아둔 가상 히스토리 정리
+  if (isFromPopState !== true && history.state?.modal === 'gallery-story') {
+    history.back()
+  }
 }
 
 const prevPhoto = () => {
@@ -294,12 +303,20 @@ const handleKeyDown = (e: KeyboardEvent) => {
   }
 }
 
+const handlePopState = () => {
+  if (selectedIndex.value !== null) {
+    closeLightbox(true)
+  }
+}
+
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown)
+  window.addEventListener('popstate', handlePopState)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
+  window.removeEventListener('popstate', handlePopState)
   stopProgressAnim()
   clearTimeout(holdTimer)
   clearTimeout(peekTimer)
@@ -369,40 +386,43 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- Mobile Touch & Hold Peek Preview (뒷 배경 블러 및 노 레이어 효과) -->
-    <Transition name="peek-fade">
-      <div
-        v-if="isPeeking && peekPhoto"
-        class="peek-modal-overlay"
-        @contextmenu.prevent
-        @touchmove.prevent
-      >
-        <div class="peek-card">
-          <div class="peek-image-container">
-            <!-- Peek Skeleton Loader -->
-            <div v-if="!isPeekImageLoaded" class="peek-skeleton">
-              <div class="skeleton-shimmer"></div>
-              <div class="peek-spinner"></div>
+    <!-- Mobile Touch & Hold Peek Preview (브라우저 전체화면 텔레포트) -->
+    <Teleport to="body">
+      <Transition name="peek-fade">
+        <div
+          v-if="isPeeking && peekPhoto"
+          class="peek-modal-overlay"
+          @contextmenu.prevent
+          @touchmove.prevent
+        >
+          <div class="peek-card">
+            <div class="peek-image-container">
+              <!-- Peek Skeleton Loader -->
+              <div v-if="!isPeekImageLoaded" class="peek-skeleton">
+                <div class="skeleton-shimmer"></div>
+                <div class="peek-spinner"></div>
+              </div>
+              <img
+                :src="getOptimizedImageUrl(peekPhoto.url, 800, 85)"
+                :alt="peekPhoto.caption || '사진 미리보기'"
+                class="peek-image"
+                :class="{ 'is-loaded': isPeekImageLoaded }"
+                draggable="false"
+                @contextmenu.prevent
+                @load="isPeekImageLoaded = true"
+              />
             </div>
-            <img
-              :src="getOptimizedImageUrl(peekPhoto.url, 800, 85)"
-              :alt="peekPhoto.caption || '사진 미리보기'"
-              class="peek-image"
-              :class="{ 'is-loaded': isPeekImageLoaded }"
-              draggable="false"
-              @contextmenu.prevent
-              @load="isPeekImageLoaded = true"
-            />
-          </div>
-          <div v-if="peekPhoto.caption" class="peek-caption font-serif">
-            {{ peekPhoto.caption }}
+            <div v-if="peekPhoto.caption" class="peek-caption font-serif">
+              {{ peekPhoto.caption }}
+            </div>
           </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
 
-    <!-- Fullscreen Instagram Story Modal -->
-    <Transition name="story-modal-fade">
+    <!-- Fullscreen Instagram Story Modal (브라우저 전체화면 텔레포트) -->
+    <Teleport to="body">
+      <Transition name="story-modal-fade">
       <div
         v-if="selectedIndex !== null"
         class="story-backdrop"
@@ -532,6 +552,7 @@ onUnmounted(() => {
         </button>
       </div>
     </Transition>
+    </Teleport>
   </section>
 </template>
 
