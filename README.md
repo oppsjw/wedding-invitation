@@ -1,8 +1,150 @@
-# Vue 3 + TypeScript + Vite
+# 📜 Wedding Invitation 프로젝트 전체 개발 및 변경 히스토리
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+본 문서는 `wedding-invitation` 깃 레포지토리의 최초 생성 커밋(`0649d2e`)부터 현재 최신 커밋(`bc3d1d4`)까지의 모든 기능 개발, UI/UX 개선, 버그 픽스 및 최적화 내역을 단계별로 총망라한 종합 보고서입니다.
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+---
+
+## 📅 단계별 발전 과정 요약
+[1단계: 초기 구축] → [2단계: 관리자 CMS] → [3단계: 스토리 갤러리] → [4단계: Firebase 클라우드] → [5단계: 현장 스냅] → [6단계: 모바일 UX 안정화] → [7단계: 정밀 고도화 및 완성]
 
 
-- kjw 등장
+---
+
+## 1단계: 프로젝트 초기 구축 및 정적 배포 안정화
+> **주요 커밋**: `0649d2e` ~ `344b09e`
+
+- **현대적 프론트엔드 스택 구축**:
+  - Vue 3 (Composition API / `<script setup>`), TypeScript, Vite 기반 번들러 환경 설정.
+  - Pretendard, Gowun Batang, Noto Serif KR 등 한국어 웨딩 감성에 최적화된 웹 폰트 적용.
+- **GitHub Pages 배포 파이프라인 정립**:
+  - 정적 호스팅 환경에 최적화된 단일 번들 동기화 스크립트(`scripts/sync-assets.cjs`) 구축.
+  - 빌드 산출물(`dist/assets`)을 루트 `assets/app.js`, `style.css`로 자동 동기화하여 별도의 복잡한 서버 없이 GitHub Pages에서 100% 안정적으로 서빙되도록 구성.
+- **기본 웨딩 데이터 및 디자인 베이스라인**:
+  - 신랑(경주원) ♥ 신부(양예진) 예식 기본 정보(2026년 12월 12일 토요일 오후 6시, 서울상록회관 상록아트홀) 세팅.
+  - 클래식하고 따스한 오프화이트/아이보리(`--bg-warm`, `--bg-pure`) & 샴페인 골드 테마 디자인 시스템 확립.
+
+---
+
+## 2단계: 관리자(Admin) CMS 기능 도입 및 섹션별 인터랙션 기초
+> **주요 커밋**: `f74c4b4` ~ `7dcd85e`
+
+- **관리자 인증 및 전용 대시보드 (`/admin`)**:
+  - 보안 PIN 번호 기반 관리자 로그인 시스템 구현.
+  - 탭 기반 관리 UI: 예식 일시/장소, 신랑/신부 및 혼주 연락처, 계좌번호, 사진 관리, 참석 명단, 방명록, 환경 설정.
+- **사진 관리 CMS 고도화**:
+  - 사진 순서 마우스 드래그 앤 드롭(HTML5 Drag & Drop) 재정렬 지원.
+  - 사진 노출/숨김 개별 토글 및 총 사진 수 실시간 계산.
+- **예식 정보 및 축의금 계좌 아코디언**:
+  - 신랑측/신부측 혼주 정보 분리 및 카카오페이 송금 딥링크 지원.
+  - 계좌번호 원클릭 클립보드 복사 및 부드러운 아코디언 열림/닫힘 UI.
+- **참석 여부(RSVP) 및 방명록**:
+  - 하객 참석 여부(참석/불참, 동행 인원, 식사 여부) 수집 폼 및 관리자 엑셀(CSV) 다운로드 기능.
+  - 방명록 작성, 비밀번호 기반 삭제 및 관리자 노출/숨김 제어.
+- **오시는 길 네이버 지도 연동**:
+  - 네이버 웹 다이내믹 맵 연동, 마커 핀 및 상록아트홀 위치 좌표 등록.
+  - 네이버지도, 카카오맵, 티맵 3사 길찾기 딥링크 버튼 구성.
+
+---
+
+## 3단계: 스크롤 제스처 튜닝 및 인스타그램 스토리 갤러리 전면 개편
+> **주요 커밋**: `be40808` ~ `fe68ca1`
+
+- **스크롤 사용자 경험(UX) 전환**:
+  - 초기에 시도했던 풀스크린 스냅 스크롤(`scroll-snap`)이 모바일 환경에서 역스크롤 튕김이나 버벅임을 유발함을 발견하고 과감히 전면 제거.
+  - IntersectionObserver 기반의 부드러운 **Scroll Reveal (섹션이 1/3 이상 보일 때 서서히 페이드인 등장)** 방식으로 전환하여 자연스럽고 편안한 스크롤 완성.
+- **인스타그램 스토리 스타일 전체화면 갤러리 개편**:
+  - 단순 모달 팝업 대신 인스타그램 스토리 UX를 청첩장 갤러리에 도입.
+  - 상단 세그먼트 프로그레스 바(시간 경과 표시), 4.5초 자동 슬라이드 전환.
+  - 화면 롱프레스 터치 시 일시정지, 좌/우 탭(30% / 70%) 및 좌우 스와이프를 통한 이전/다음 사진 이동 지원.
+  - 닫기 버튼 및 아래로 스와이프 시 닫힘 제스처 지원.
+
+---
+
+## 4단계: Firebase 클라우드 실시간 동기화 (Storage & Firestore)
+> **주요 커밋**: `08f3201` ~ `ee2d578`
+
+- **Firebase Storage 클라우드 사진 업로드**:
+  - 관리자가 기기에서 사진을 선택하면 Firebase Storage로 직접 업로드되어 고해상도 원본 및 최적화 URL 자동 생성.
+  - 네트워크 환경에 따른 업로드 무한 대기 방지를 위해 타임아웃(15초) 및 에러 방어 로직 적용.
+- **Cloud Firestore 실시간 양방향 데이터 동기화**:
+  - 로컬스토리지(`localStorage`) 기반의 한계를 넘어, 관리자가 수정한 예식 정보, 사진 순서, 방명록, 참석 명단이 Firestore 클라우드와 실시간 양방향 동기화(`onSnapshot`).
+  - 브라우저 간 피드백 루프 방지 플래그 및 플로팅 실시간 동기화 상태 바(`isCloudSyncing`, `lastCloudSyncTime`) 탑재.
+
+---
+
+## 5단계: 하객 참여형 '현장 스냅(Live Snap)' 기능 추가 및 고도화
+> **주요 커밋**: `f64b74d` ~ `6ffe9d7`
+
+- **실시간 현장 스냅 피드**:
+  - 결혼식 당일 하객들이 찍은 현장 사진과 동영상을 축하 메시지와 함께 실시간으로 공유하는 스트림 피드 구현.
+  - 끊김 없는 무한 롤링 메이슨리(Masonry) 배경 스크롤 애니메이션.
+  - 사용자가 화면을 터치/스크롤하면 자동 스크롤이 즉시 멈추고 5초 후 자동 재개되는 지능형 인터랙션.
+- **동영상(MP4) 업로드 및 사운드 재생**:
+  - 비디오 파일 업로드 지원 및 Storage 메타데이터(`video/mp4`) 보장.
+  - 피드 카드 내에서는 무음(`muted playsinline`) 맛보기 자동 재생, 라이트박스 오픈 시 사운드 포함 정식 재생.
+- **14종 웨딩 일러스트 분리 배분 (중복 방지)**:
+  - 하객 업로드 수가 적을 때 채워지는 14종의 웨딩 일러스트를 홀수 풀(Pool 1: 7종)과 짝수 풀(Pool 2: 7종)로 엄격히 분리하여 좌우 열 및 상하 스크롤 중 동일 이미지가 절대 겹치지 않도록 설계.
+
+---
+
+## 6단계: 모바일 뒤로가기(History) 제어 및 인터랙션 안정화
+> **주요 커밋**: `d7b507f` ~ `8930784`
+
+- **모바일 브라우저 뒤로가기(Popstate) 완벽 제어**:
+  - 스토리 뷰어, 현장스냅 라이트박스, 모달 팝업 상태에서 모바일 뒤로가기 버튼 클릭 시 이전 페이지(`about:blank` 등)로 이탈하지 않고 **오직 해당 모달 레이어만 부드럽게 닫히도록** `history.pushState` 및 `popstate` 연동.
+  - 모달 닫힘 시 모달 열기 직전의 스크롤 위치(`savedScrollY`)를 `requestAnimationFrame`과 함께 100% 오차 없이 복원.
+  - 브라우저 자체의 스크롤 점프를 방지하기 위해 `scrollRestoration = 'manual'` 유지.
+- **네비게이션 및 길찾기 브랜드 정밀화**:
+  - 네이버 지도 OpenAPI 최신 키(`ncpKeyId`) 마이그레이션 및 관리자 Key 동적 설정 지원.
+  - 길찾기 내비게이션 3사(네이버 지도, 카카오맵, 티맵)의 앱스토어 공식 브랜드 컬러 및 최신 공식 로고 아이콘 정밀 반영.
+  - 캘린더 '일정 등록하기' 버튼 제거 및 디자인 정돈.
+- **섹션 노출 토글 및 동적 교차 배경색 시스템**:
+  - 참석의사전달(RSVP) 섹션을 관리자 설정에 따라 보이기/숨기기 토글 지원.
+  - 중간 섹션이 숨겨져도 인접 섹션 간 배경색(웜아이보리 vs 화이트)이 동일하게 겹치지 않고 지그재그 교차를 유지하는 동적 클래스(`isEvenVisibleSection`) 시스템 구축.
+
+---
+
+## 7단계: 정밀 기능 고도화 및 최종 완성 (최신)
+> **주요 커밋**: `086eec6` ~ `bc3d1d4`
+
+- **방명록 실시간 동기화 & 비속어 필터링 & 카드 반대색 자동 연동**:
+  - 관리자 방명록 삭제 및 노출 토글의 Firestore 실시간 반영.
+  - 비속어/욕설 사전 검출 필터링 모듈(`filter.ts`) 도입으로 부적절한 단어 입력 시 차단 및 정중한 경고 배너 표출.
+  - 방명록 섹션 배경색 변화에 맞춰 방명록 카드 색상이 상호 대비되도록 `.theme-card-inverse` 자동 반전 연동.
+- **갤러리 1:1 사진 얼굴 초점 맞춤 인터랙티브 크롭 모달**:
+  - 관리자 사진 관리 탭에서 원본 사진을 클릭/드래그하여 인물 얼굴 위치를 지정하는 십자선 타깃 레티클 모달 구현.
+  - 4단계 위치 프리셋 및 1:1 썸네일 라이브 미리보기 제공.
+  - 갤러리 3x3 썸네일에 `objectPosition` 스타일 바인딩으로 얼굴 잘림 현상 원천 해결.
+- **축하 연락처 모달 화면 잘림 해결 (Teleport & Popstate)**:
+  - 인삿말 섹션의 연락처 모달을 `<Teleport to="body">`로 래핑하여 타 섹션 스태킹 컨텍스트에 의한 잘림 현상 원천 해결, `z-index: 9999` 상향 및 뒤로가기 연동.
+- **관리자 페이지 섹션 노출 스위치 알약(Pill) 디자인 통합**:
+  - 참석 명단(RSVP) 및 현장스냅 탭의 타이틀 옆에 `[청첩장에 노출 (ON/OFF)]` 미니 알약 토글 스위치 통일 배치 및 중복 스위치 카드 정리.
+- **오시는 길 티맵(TMAP) PC 환경 비활성화**:
+  - 정밀 기기 환경 감지 적용: 스마트폰이 아닌 PC 접속 시 티맵 버튼을 비활성화(회색조, 클릭 차단)하고 `[모바일 전용]` 배지 및 클릭 토스트 팝업 표출.
+- **청첩장 & 관리자 전용 파비콘(Favicon) 제작 및 동적 분기**:
+  - 청첩장: 아이보리 베이스 + 골드 웨딩 링 & 다이아몬드 보석, 핑크 하트 벡터 파비콘 (`public/favicon.svg`).
+  - 관리자 페이지: 다크 네이비 베이스 + 골드 웨딩 링 & 설정 기어(Gear) 배지 파비콘 (`public/favicon-admin.svg`).
+  - Vue Router `afterEach` 훅에서 라우트 경로에 따라 브라우저 탭 파비콘을 실시간 동적 스위칭.
+- **갤러리 초기 9장(3x3 완전 그리드) 확장 및 롱프레스 배경 스크롤 3중 잠금**:
+  - 초기 썸네일 노출을 6장에서 9장으로 상향하여 완벽한 3x3 정사각형 그리드 완성.
+  - 모바일 터치 타깃 캡처(Touch Target Locking) 특성에 대응하여 롱프레스 픽(Peek) 모달 상태에서 손가락을 움직여도 뒷 배경 div가 절대 스크롤되지 않도록 3중 차단(`preventDefault`, `window.touchmove`, `body.overflow` 잠금) 적용.
+- **Firebase 확정 키 반영 및 관리자 초기 비밀번호 설정 완료**:
+  - 정적 번들(`assets/app.js`)에 최신 Firebase 클라우드 연결 설정 확정 반영 및 배포 정상화.
+
+---
+
+## 📂 프로젝트 주요 파일 아키텍처 요약
+
+| 디렉터리 / 파일 경로 | 역할 및 주요 기능 |
+| :--- | :--- |
+| `src/views/InvitationView.vue` | 하객용 모바일 청첩장 메인 뷰 (섹션 동적 교차 배경색 및 하단 미니 네비게이션) |
+| `src/views/AdminView.vue` | 관리자 로그인(PIN 인증) 및 탭 통합 CMS 뷰 |
+| `src/components/invitation/` | 청첩장 섹션별 컴포넌트 (Cover, Greeting, Calendar, Gallery, Location, LiveSnap, Guestbook, Account, ShareFooter) |
+| `src/components/admin/` | 관리자 기능 컴포넌트 (PhotoManager, InfoEditor, RsvpViewer, GuestbookModerator, LiveSnapManager, AdminSettings) |
+| `src/services/storage.ts` | 로컬 스토리지 + Firestore 클라우드 양방향 실시간 동기화 및 전역 반응형 상태 관리 |
+| `src/services/firebase.ts` | Firebase App, Cloud Firestore, Firebase Storage 초기화 및 업로드/구독 API |
+| `src/constants/initialData.ts` | 예식 정보, 갤러리 사진, 축의금 계좌, 방명록 등 기본 초기 데이터셋 보관 |
+| `src/utils/filter.ts` | 방명록 비속어 및 욕설 필터링 엔진 |
+| `scripts/sync-assets.cjs` | Vite 빌드 산출물(`dist/`)을 루트(`root/`)에 자동 동기화하여 GitHub Pages 배포 지원 |
+| `AGENTS.md` | 본 프로젝트의 AI 코딩 가이드라인 및 인터랙션/커밋 규칙 문서 |
+| `PROMPTS_LOG.md` | 프로젝트 시작부터 현재까지의 모든 사용자 질문 및 프롬프트 상세 히스토리 로그 |
