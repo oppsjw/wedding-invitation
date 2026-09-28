@@ -184,7 +184,7 @@ export const DEFAULT_GUESTBOOK: GuestbookItem[] = [
 ]
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
-  adminPin: 'yyjkjw0809',
+  adminPin: '1234',
   useFirebase: false,
   forceShowLiveSnap: false,
   showLiveSnapSection: true,
