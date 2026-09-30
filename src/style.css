@@ -44,7 +44,11 @@ a:focus-visible {
 }
 
 html, body {
-  background-color: #EDE8DE;
+  background-color: #FAF7F2;
+  background-image: url('./assets/images/paper-texture.jpg');
+  background-repeat: repeat;
+  background-size: 576px auto;
+  background-attachment: fixed;
   color: var(--text-main);
   font-family: var(--font-sans);
   line-height: 1.6;

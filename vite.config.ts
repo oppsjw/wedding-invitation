@@ -1,5 +1,6 @@
 import vue from '@vitejs/plugin-vue'
 import { defineConfig, type Plugin } from 'vite'
+import path from 'path'
 
 function devHtmlPlugin(): Plugin {
   return {
@@ -17,6 +18,11 @@ function devHtmlPlugin(): Plugin {
 export default defineConfig({
   plugins: [vue(), devHtmlPlugin()],
   base: './',
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src')
+    }
+  },
   build: {
     outDir: 'dist',
     rollupOptions: {
@@ -34,6 +40,8 @@ export default defineConfig({
     }
   },
   server: {
-    allowedHosts: ['zen-cover-neuron.ngrok-free.dev'],
+    allowedHosts: [
+      '.ngrok-free.dev'
+    ],
   }
 })
