@@ -18,7 +18,7 @@ import { isStoryOpen, weddingInfo, photos, adminSettings } from '../services/sto
 const isRsvpVisible = computed(() => weddingInfo.value.showRsvp !== false && adminSettings.value.showRsvpSection !== false)
 const isLiveSnapVisible = computed(() => adminSettings.value.showLiveSnapSection !== false)
 
-// Cover 섹션 다음부터, 실제로 화면에 표시되는 섹션들의 배경색이 무조건 번갈아가며(White <-> Ivory) 적용되도록 계산
+// Cover 섹션(종이 질감) 다음부터, 실제로 화면에 표시되는 섹션들의 배경이 번갈아가며(Ivory <-> Paper Texture) 적용되도록 계산
 const middleSectionThemes = computed(() => {
   const candidateSections = [
     { id: 'greeting', visible: true },
@@ -31,15 +31,15 @@ const middleSectionThemes = computed(() => {
     { id: 'livesnap', visible: isLiveSnapVisible.value }
   ]
 
-  let currentTheme: 'white' | 'ivory' = 'white'
-  const themeMap: Record<string, 'white' | 'ivory'> = {}
+  let currentTheme: 'paper' | 'ivory' = 'ivory'
+  const themeMap: Record<string, 'paper' | 'ivory'> = {}
 
   for (const item of candidateSections) {
     if (item.visible) {
       if (item.id === 'greeting') {
-        currentTheme = 'white'
+        currentTheme = 'ivory'
       } else {
-        currentTheme = currentTheme === 'white' ? 'ivory' : 'white'
+        currentTheme = currentTheme === 'ivory' ? 'paper' : 'ivory'
       }
       themeMap[item.id] = currentTheme
     }
@@ -253,7 +253,7 @@ onUnmounted(() => {
     <BgmPlayer />
 
     <!-- 1. Cover Section -->
-    <div class="invitation-section-wrapper" data-section="cover">
+    <div class="invitation-section-wrapper theme-paper" data-section="cover">
       <CoverSection />
     </div>
 
@@ -261,7 +261,8 @@ onUnmounted(() => {
     <div
       class="invitation-section-wrapper"
       data-section="greeting"
-      :style="{ '--section-bg': middleSectionThemes['greeting'] === 'ivory' ? 'var(--bg-ivory)' : '#FFFFFF' }"
+      :class="middleSectionThemes['greeting'] === 'paper' ? 'theme-paper' : 'theme-ivory'"
+      :style="{ '--section-bg': middleSectionThemes['greeting'] === 'ivory' ? 'var(--bg-ivory)' : 'transparent' }"
     >
       <GreetingSection />
     </div>
@@ -270,7 +271,8 @@ onUnmounted(() => {
     <div
       class="invitation-section-wrapper"
       data-section="calendar"
-      :style="{ '--section-bg': middleSectionThemes['calendar'] === 'ivory' ? 'var(--bg-ivory)' : '#FFFFFF' }"
+      :class="middleSectionThemes['calendar'] === 'paper' ? 'theme-paper' : 'theme-ivory'"
+      :style="{ '--section-bg': middleSectionThemes['calendar'] === 'ivory' ? 'var(--bg-ivory)' : 'transparent' }"
     >
       <CalendarSection />
     </div>
@@ -279,7 +281,8 @@ onUnmounted(() => {
     <div
       class="invitation-section-wrapper"
       data-section="gallery"
-      :style="{ '--section-bg': middleSectionThemes['gallery'] === 'ivory' ? 'var(--bg-ivory)' : '#FFFFFF' }"
+      :class="middleSectionThemes['gallery'] === 'paper' ? 'theme-paper' : 'theme-ivory'"
+      :style="{ '--section-bg': middleSectionThemes['gallery'] === 'ivory' ? 'var(--bg-ivory)' : 'transparent' }"
     >
       <GallerySection />
     </div>
@@ -288,7 +291,8 @@ onUnmounted(() => {
     <div
       class="invitation-section-wrapper"
       data-section="location"
-      :style="{ '--section-bg': middleSectionThemes['location'] === 'ivory' ? 'var(--bg-ivory)' : '#FFFFFF' }"
+      :class="middleSectionThemes['location'] === 'paper' ? 'theme-paper' : 'theme-ivory'"
+      :style="{ '--section-bg': middleSectionThemes['location'] === 'ivory' ? 'var(--bg-ivory)' : 'transparent' }"
     >
       <LocationSection />
     </div>
@@ -297,7 +301,8 @@ onUnmounted(() => {
     <div
       class="invitation-section-wrapper"
       data-section="account"
-      :style="{ '--section-bg': middleSectionThemes['account'] === 'ivory' ? 'var(--bg-ivory)' : '#FFFFFF' }"
+      :class="middleSectionThemes['account'] === 'paper' ? 'theme-paper' : 'theme-ivory'"
+      :style="{ '--section-bg': middleSectionThemes['account'] === 'ivory' ? 'var(--bg-ivory)' : 'transparent' }"
     >
       <AccountSection />
     </div>
@@ -307,8 +312,11 @@ onUnmounted(() => {
       v-show="isRsvpVisible"
       class="invitation-section-wrapper"
       data-section="rsvp"
-      :class="{ 'is-visible': isRsvpVisible }"
-      :style="{ '--section-bg': middleSectionThemes['rsvp'] === 'ivory' ? 'var(--bg-ivory)' : '#FFFFFF' }"
+      :class="[
+        { 'is-visible': isRsvpVisible },
+        middleSectionThemes['rsvp'] === 'paper' ? 'theme-paper' : 'theme-ivory'
+      ]"
+      :style="{ '--section-bg': middleSectionThemes['rsvp'] === 'ivory' ? 'var(--bg-ivory)' : 'transparent' }"
     >
       <RsvpSection />
     </div>
@@ -317,8 +325,9 @@ onUnmounted(() => {
     <div
       class="invitation-section-wrapper"
       data-section="guestbook"
+      :class="middleSectionThemes['guestbook'] === 'paper' ? 'theme-paper' : 'theme-ivory'"
       :style="{
-        '--section-bg': middleSectionThemes['guestbook'] === 'ivory' ? 'var(--bg-ivory)' : '#FFFFFF',
+        '--section-bg': middleSectionThemes['guestbook'] === 'ivory' ? 'var(--bg-ivory)' : 'transparent',
         '--card-bg': middleSectionThemes['guestbook'] === 'ivory' ? '#FFFFFF' : 'var(--bg-ivory)',
         '--input-bg': middleSectionThemes['guestbook'] === 'ivory' ? 'var(--bg-ivory)' : '#FFFFFF'
       }"
@@ -331,8 +340,11 @@ onUnmounted(() => {
       v-show="isLiveSnapVisible"
       class="invitation-section-wrapper"
       data-section="livesnap"
-      :class="{ 'is-visible': isLiveSnapVisible }"
-      :style="{ '--section-bg': middleSectionThemes['livesnap'] === 'ivory' ? 'var(--bg-ivory)' : '#FFFFFF' }"
+      :class="[
+        { 'is-visible': isLiveSnapVisible },
+        middleSectionThemes['livesnap'] === 'paper' ? 'theme-paper' : 'theme-ivory'
+      ]"
+      :style="{ '--section-bg': middleSectionThemes['livesnap'] === 'ivory' ? 'var(--bg-ivory)' : 'transparent' }"
     >
       <LiveSnapSection />
     </div>
@@ -405,6 +417,24 @@ onUnmounted(() => {
 .invitation-section-wrapper.is-visible,
 .invitation-section-wrapper:first-child {
   opacity: 1;
+}
+
+.invitation-section-wrapper.theme-paper {
+  background-color: #FAF7F2;
+  background-image: url('../assets/images/paper-texture.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+}
+
+.invitation-section-wrapper.theme-paper :deep(.invitation-section),
+.invitation-section-wrapper.theme-paper .invitation-section {
+  background-color: transparent !important;
+}
+
+.invitation-section-wrapper.theme-ivory {
+  background-color: var(--bg-ivory);
+  background-image: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

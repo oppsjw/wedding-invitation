@@ -116,7 +116,11 @@ const formattedDate = computed(() => {
   padding: 56px 20px 48px;
   text-align: center;
   position: relative;
-  background-color: var(--bg-ivory);
+  background-color: #FAF7F2;
+  background-image: url('../../assets/images/paper-texture.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -173,7 +177,11 @@ const formattedDate = computed(() => {
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  background-color: var(--bg-ivory);
+  background-color: #FAF7F2;
+  background-image: url('../../assets/images/paper-texture.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   width: 100%;
 }
 
