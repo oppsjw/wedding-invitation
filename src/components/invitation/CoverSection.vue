@@ -1,9 +1,21 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { photos, weddingInfo, formatWeddingDate } from '../../services/storage'
 import { Heart } from 'lucide-vue-next'
+import WeddingDayCalligraphy from './WeddingDayCalligraphy.vue'
 
 const isCoverReady = ref(false)
+const calligraphyRef = ref<InstanceType<typeof WeddingDayCalligraphy> | null>(null)
+
+watch(isCoverReady, (ready) => {
+  if (ready) {
+    nextTick(() => {
+      setTimeout(() => {
+        calligraphyRef.value?.start()
+      }, 300)
+    })
+  }
+})
 
 const coverPhoto = computed(() => {
   const visiblePhotos = photos.value.filter(p => !p.isHidden)
@@ -65,9 +77,18 @@ const formattedDate = computed(() => {
 
     <!-- 2. Main Cover Section: Rendered only after image is 100% loaded -->
     <header v-else class="cover-container" key="content">
-      <!-- Top Tagline -->
+      <!-- Top Tagline & Calligraphy -->
       <div class="header-tagline">
         <span class="sub-label">WEDDING INVITATION</span>
+        <div class="calligraphy-container">
+          <WeddingDayCalligraphy
+            ref="calligraphyRef"
+            color="var(--gold-dark, #8C6D3B)"
+            :speed="1.1"
+            :autoplay="false"
+            :replayable="true"
+          />
+        </div>
       </div>
 
       <!-- Main Photo Frame with elegant shadow & border -->
@@ -113,7 +134,7 @@ const formattedDate = computed(() => {
   min-height: 100vh;
   min-height: 100dvh;
   justify-content: center;
-  padding: 56px 20px 48px;
+  padding: 40px 20px 32px;
   text-align: center;
   position: relative;
   background-color: #FAF7F2;
@@ -124,13 +145,23 @@ const formattedDate = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
+  gap: 12px;
   box-sizing: border-box;
   width: 100%;
 }
 
 .header-tagline {
-  margin-bottom: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 0px;
+}
+
+.calligraphy-container {
+  width: 100%;
+  max-width: 165px;
+  margin: 0 auto;
 }
 
 .sub-label {
@@ -139,7 +170,7 @@ const formattedDate = computed(() => {
   letter-spacing: 4px;
   color: var(--gold-primary);
   font-weight: 600;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .eng-date {
@@ -161,7 +192,7 @@ const formattedDate = computed(() => {
   position: relative;
   width: 100%;
   aspect-ratio: 4 / 5;
-  max-height: 45vh;
+  max-height: 40vh;
   border-radius: 180px 180px 16px 16px;
   overflow: hidden;
   box-shadow: 0 16px 36px rgba(110, 93, 76, 0.14);
