@@ -12,24 +12,32 @@ watch(isCoverReady, (ready) => {
     nextTick(() => {
       setTimeout(() => {
         calligraphyRef.value?.start()
-      }, 300)
+      }, 450)
     })
   }
 })
 
-const coverPhoto = computed(() => {
+const currentCoverPhoto = computed(() => {
   const visiblePhotos = photos.value.filter(p => !p.isHidden)
   const found = visiblePhotos.find(p => p.isCover)
-  return found ? found.url : (visiblePhotos[0]?.url || '')
+  return found || visiblePhotos[0] || null
+})
+
+const coverPhotoUrl = computed(() => {
+  return currentCoverPhoto.value?.url || ''
+})
+
+const coverObjectPosition = computed(() => {
+  return currentCoverPhoto.value?.objectPosition || 'center center'
 })
 
 const preloadCover = () => {
-  if (!coverPhoto.value) {
+  if (!coverPhotoUrl.value) {
     isCoverReady.value = true
     return
   }
   const img = new Image()
-  img.src = coverPhoto.value
+  img.src = coverPhotoUrl.value
   if (img.complete) {
     isCoverReady.value = true
   } else {
@@ -46,7 +54,7 @@ onMounted(() => {
   preloadCover()
 })
 
-watch(coverPhoto, () => {
+watch(coverPhotoUrl, () => {
   isCoverReady.value = false
   preloadCover()
 })
@@ -79,14 +87,13 @@ const formattedDate = computed(() => {
     <header v-else class="cover-container" key="content">
       <!-- Top Tagline & Calligraphy -->
       <div class="header-tagline">
-        <span class="sub-label">WEDDING INVITATION</span>
         <div class="calligraphy-container">
           <WeddingDayCalligraphy
             ref="calligraphyRef"
-            color="var(--gold-dark, #8C6D3B)"
+            color="var(--gold-dark, #3E444B)"
             :speed="1.1"
-            :autoplay="false"
-            :replayable="true"
+            :autoplay="true"
+            :replayable="false"
           />
         </div>
       </div>
@@ -95,10 +102,11 @@ const formattedDate = computed(() => {
       <div class="photo-frame-wrapper">
         <div class="photo-frame">
           <img
-            v-if="coverPhoto"
-            :src="coverPhoto"
+            v-if="coverPhotoUrl"
+            :src="coverPhotoUrl"
             alt="웨딩 대표 사진"
             class="cover-image"
+            :style="{ objectPosition: coverObjectPosition }"
             loading="eager"
             fetchpriority="high"
             decoding="async"
@@ -137,15 +145,11 @@ const formattedDate = computed(() => {
   padding: 40px 20px 32px;
   text-align: center;
   position: relative;
-  background-color: #FAF7F2;
-  background-image: url('../../assets/images/paper-texture.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background-color: var(--bg-ivory);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 40px;
   box-sizing: border-box;
   width: 100%;
 }
@@ -154,29 +158,14 @@ const formattedDate = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  width: 100%;
   margin-bottom: 0px;
 }
 
 .calligraphy-container {
   width: 100%;
-  max-width: 165px;
+  max-width: 285px;
   margin: 0 auto;
-}
-
-.sub-label {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 4px;
-  color: var(--gold-primary);
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-
-.eng-date {
-  font-size: 14px;
-  color: var(--text-sub);
-  letter-spacing: 1px;
 }
 
 .photo-frame-wrapper {
@@ -185,19 +174,21 @@ const formattedDate = computed(() => {
   align-items: center;
   justify-content: center;
   width: 100%;
-  max-width: 325px;
 }
 
 .photo-frame {
   position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 5;
-  max-height: 40vh;
-  border-radius: 180px 180px 16px 16px;
+  width: 220px;
+  height: 220px;
+  aspect-ratio: 1 / 1;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vw - 48px);
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 16px 36px rgba(110, 93, 76, 0.14);
+  box-shadow: 0 12px 30px rgba(32, 36, 40, 0.12);
   border: 4px solid #FFFFFF;
-  background: #EFE7DA;
+  background: var(--bg-warm);
+  flex-shrink: 0;
 }
 
 .cover-loading-screen {
@@ -208,11 +199,7 @@ const formattedDate = computed(() => {
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  background-color: #FAF7F2;
-  background-image: url('../../assets/images/paper-texture.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background-color: var(--bg-ivory);
   width: 100%;
 }
 
@@ -241,7 +228,7 @@ const formattedDate = computed(() => {
 .loading-ring-spinner {
   width: 36px;
   height: 36px;
-  border: 2.5px solid rgba(168, 131, 80, 0.2);
+  border: 2.5px solid rgba(85, 93, 102, 0.2);
   border-top-color: var(--gold-primary);
   border-radius: 50%;
   animation: spin 0.85s linear infinite;
@@ -281,7 +268,6 @@ const formattedDate = computed(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center 20%;
   transition: transform 0.8s ease;
 }
 

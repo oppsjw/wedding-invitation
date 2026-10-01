@@ -15,10 +15,10 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  color: '#4A3E36',
+  color: '#3E444B',
   speed: 1.0,
   autoplay: true,
-  replayable: true,
+  replayable: false,
   showReplayTip: false
 })
 
@@ -38,7 +38,7 @@ const isWeddingVisible = ref(false)
 const isFullyRevealed = ref(false)
 
 // Wedding 글자별 획 ref
-const strokeRefs = ref<Record<string, SVGPathElement>>({})
+const strokeRefs: Record<string, SVGPathElement> = {}
 
 // 새 OurWeddingDay.svg (총 24개 패스)
 const rawSvgPaths = [
@@ -168,7 +168,7 @@ const startAnimation = () => {
 
   // 1. 초기화: 모든 마스크 스트로크를 0으로 숨김
   letterStrokes.forEach(letter => {
-    const el = strokeRefs.value[letter.id]
+    const el = strokeRefs[letter.id]
     if (!el) return
     const len = el.getTotalLength() || 1500
     el.style.transition = 'none'
@@ -191,7 +191,7 @@ const startAnimation = () => {
 
   // 3. [2단계] Wedding 필기체 획 작성 (Our가 완성된 0.65s에 시작!)
   letterStrokes.forEach(letter => {
-    const el = strokeRefs.value[letter.id]
+    const el = strokeRefs[letter.id]
     if (!el) return
 
     const delay = (letter.delay / effectiveSpeed) * 1000
@@ -239,11 +239,11 @@ const replay = () => {
 onMounted(() => {
   nextTick(() => {
     // 렌더링이 완전히 안정화된 후 애니메이션 시작
-    window.requestAnimationFrame(() => {
+    window.setTimeout(() => {
       if (props.autoplay) {
         startAnimation()
       }
-    })
+    }, 200)
   })
 })
 
@@ -428,7 +428,7 @@ defineExpose({
   align-items: center;
   justify-content: center;
   width: 100%;
-  max-width: 320px;
+  max-width: 100%;
   margin: 0 auto;
   position: relative;
   user-select: none;
@@ -450,7 +450,7 @@ defineExpose({
   height: auto;
   display: block;
   overflow: visible;
-  filter: drop-shadow(0 2px 8px rgba(184, 147, 88, 0.08));
+  filter: drop-shadow(0 2px 8px rgba(40, 48, 56, 0.06));
 }
 
 /* Our / Day 부드러운 페이드인 */
@@ -488,7 +488,7 @@ defineExpose({
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: var(--gold-primary, #A88350);
+  color: var(--gold-primary, #555D66);
   opacity: 0.65;
   margin-top: 2px;
   animation: fadeInHint 0.6s ease-out;

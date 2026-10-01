@@ -525,7 +525,7 @@ onMounted(() => {
   border-radius: 12px;
   overflow: hidden;
   position: relative;
-  background: #EAE6DF;
+  background: var(--bg-warm, #E2E4E8);
 }
 
 .naver-map-canvas {
@@ -545,7 +545,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, #FBFDFC 0%, #EAE6DF 100%);
+  background: linear-gradient(135deg, #F8F9FA 0%, #E2E4E8 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -719,8 +719,8 @@ onMounted(() => {
 .mobile-only-tag {
   font-size: 8.5px;
   font-weight: 600;
-  color: #8C6D41;
-  background: rgba(168, 131, 80, 0.12);
+  color: var(--gold-dark);
+  background: var(--gold-soft);
   padding: 1px 4px;
   border-radius: 4px;
   white-space: nowrap;
@@ -730,8 +730,8 @@ onMounted(() => {
 .tmap-pc-notice {
   margin-top: 10px;
   padding: 9px 12px;
-  background: rgba(239, 231, 218, 0.65);
-  border: 1px solid rgba(168, 131, 80, 0.28);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -740,7 +740,7 @@ onMounted(() => {
 }
 
 .notice-icon {
-  color: var(--gold-dark, #8C6D41);
+  color: var(--gold-dark, #3E444B);
   flex-shrink: 0;
 }
 

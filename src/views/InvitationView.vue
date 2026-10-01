@@ -18,7 +18,7 @@ import { isStoryOpen, weddingInfo, photos, adminSettings } from '../services/sto
 const isRsvpVisible = computed(() => weddingInfo.value.showRsvp !== false && adminSettings.value.showRsvpSection !== false)
 const isLiveSnapVisible = computed(() => adminSettings.value.showLiveSnapSection !== false)
 
-// Cover 섹션(종이 질감) 다음부터, 실제로 화면에 표시되는 섹션들의 배경이 번갈아가며(Ivory <-> Paper Texture) 적용되도록 계산
+// Cover 섹션(회색) 다음부터, 실제로 화면에 표시되는 섹션들의 배경이 번갈아가며(종이 질감 <-> 회색) 적용되도록 계산
 const middleSectionThemes = computed(() => {
   const candidateSections = [
     { id: 'greeting', visible: true },
@@ -31,13 +31,13 @@ const middleSectionThemes = computed(() => {
     { id: 'livesnap', visible: isLiveSnapVisible.value }
   ]
 
-  let currentTheme: 'paper' | 'ivory' = 'ivory'
+  let currentTheme: 'paper' | 'ivory' = 'paper'
   const themeMap: Record<string, 'paper' | 'ivory'> = {}
 
   for (const item of candidateSections) {
     if (item.visible) {
       if (item.id === 'greeting') {
-        currentTheme = 'ivory'
+        currentTheme = 'paper'
       } else {
         currentTheme = currentTheme === 'ivory' ? 'paper' : 'ivory'
       }
@@ -253,7 +253,7 @@ onUnmounted(() => {
     <BgmPlayer />
 
     <!-- 1. Cover Section -->
-    <div class="invitation-section-wrapper theme-paper" data-section="cover">
+    <div class="invitation-section-wrapper theme-ivory" data-section="cover">
       <CoverSection />
     </div>
 
@@ -420,7 +420,7 @@ onUnmounted(() => {
 }
 
 .invitation-section-wrapper.theme-paper {
-  background-color: #FAF7F2;
+  background-color: var(--bg-ivory);
   background-image: url('../assets/images/paper-texture.jpg');
   background-size: cover;
   background-position: center top;
@@ -472,8 +472,8 @@ onUnmounted(() => {
   border-radius: 9999px;
   border: 1px solid rgba(255, 255, 255, 0.85);
   box-shadow:
-    0 12px 36px -4px rgba(45, 41, 38, 0.14),
-    0 4px 12px -2px rgba(45, 41, 38, 0.08),
+    0 12px 36px -4px rgba(32, 36, 40, 0.12),
+    0 4px 12px -2px rgba(32, 36, 40, 0.06),
     inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.95),
     inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.04);
   padding: 4px;
@@ -499,8 +499,8 @@ onUnmounted(() => {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow:
-    0 4px 14px rgba(45, 41, 38, 0.09),
-    0 1px 3px rgba(45, 41, 38, 0.04),
+    0 4px 14px rgba(32, 36, 40, 0.08),
+    0 1px 3px rgba(32, 36, 40, 0.04),
     inset 0 1.5px 2px rgba(255, 255, 255, 1);
   border: 0.5px solid rgba(255, 255, 255, 0.95);
   pointer-events: none;
@@ -544,8 +544,8 @@ onUnmounted(() => {
   -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(105%);
   border: 1px solid rgba(255, 255, 255, 0.85);
   box-shadow:
-    0 12px 36px -4px rgba(45, 41, 38, 0.14),
-    0 4px 12px -2px rgba(45, 41, 38, 0.08),
+    0 12px 36px -4px rgba(32, 36, 40, 0.12),
+    0 4px 12px -2px rgba(32, 36, 40, 0.06),
     inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.95),
     inset 0 -1px 1.5px 0 rgba(0, 0, 0, 0.04);
   display: flex;
@@ -571,7 +571,7 @@ onUnmounted(() => {
 }
 
 .floating-share-circle-btn:hover {
-  color: #936B34;
+  color: var(--gold-dark);
   background: rgba(255, 255, 255, 0.88);
   transform: scale(1.05);
 }
@@ -642,12 +642,12 @@ button.nav-item-btn:active {
 }
 
 .nav-item-btn.is-active .nav-icon {
-  color: #936B34;
+  color: var(--gold-dark);
   transform: scale(1.1);
 }
 
 .nav-item-btn.is-active .nav-label {
-  color: #3C3026;
+  color: var(--text-main);
   font-weight: 700;
 }
 

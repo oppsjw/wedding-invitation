@@ -676,7 +676,7 @@ onUnmounted(() => {
 .thumbnail-skeleton {
   position: absolute;
   inset: 0;
-  background: #EFE7DA;
+  background: var(--bg-warm, #E2E4E8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -689,9 +689,9 @@ onUnmounted(() => {
   inset: 0;
   background: linear-gradient(
     90deg,
-    rgba(239, 231, 218, 0) 0%,
+    rgba(226, 228, 232, 0) 0%,
     rgba(255, 255, 255, 0.75) 50%,
-    rgba(239, 231, 218, 0) 100%
+    rgba(226, 228, 232, 0) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite ease-in-out;
@@ -1075,7 +1075,7 @@ onUnmounted(() => {
   background: rgba(18, 16, 15, 0.82);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  color: #FAF7F2;
+  color: var(--bg-ivory, #F4F5F7);
   border-radius: 9999px;
   padding: 10px 22px;
   font-size: 13.5px;
