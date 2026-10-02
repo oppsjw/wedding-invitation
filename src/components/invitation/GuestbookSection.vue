@@ -392,9 +392,9 @@ const formatDate = (isoString: string) => {
 }
 
 .page-num-btn.active {
-  background: var(--gold-dark, #A88350);
+  background: var(--gold-dark, #3E444B);
   color: #FFFFFF;
   font-weight: 700;
-  box-shadow: 0 2px 6px rgba(168, 131, 80, 0.25);
+  box-shadow: 0 2px 6px rgba(62, 68, 75, 0.25);
 }
 </style>

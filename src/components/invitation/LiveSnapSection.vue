@@ -1331,17 +1331,17 @@ function formatRelativeTime(isoString: string): string {
 .reached-indicator-line {
   width: 100%;
   height: 2.5px;
-  background: linear-gradient(90deg, transparent 0%, var(--gold-primary, #C5A059) 50%, transparent 100%);
-  box-shadow: 0 0 10px rgba(197, 160, 89, 0.85);
+  background: linear-gradient(90deg, transparent 0%, var(--gold-primary, #555D66) 50%, transparent 100%);
+  box-shadow: 0 0 10px rgba(85, 93, 102, 0.75);
 }
 
 .reached-indicator-pip {
   position: absolute;
   width: 24px;
   height: 4.5px;
-  background: var(--gold-primary, #C5A059);
+  background: var(--gold-primary, #555D66);
   border-radius: 9999px;
-  box-shadow: 0 0 10px rgba(197, 160, 89, 0.95);
+  box-shadow: 0 0 10px rgba(85, 93, 102, 0.85);
 }
 
 .indicator-fade-top-enter-active,
@@ -1398,8 +1398,8 @@ function formatRelativeTime(isoString: string): string {
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.9);
   box-shadow:
-    0 12px 36px rgba(45, 41, 38, 0.14),
-    0 2px 8px rgba(45, 41, 38, 0.06),
+    0 12px 36px rgba(32, 36, 40, 0.12),
+    0 2px 8px rgba(32, 36, 40, 0.05),
     inset 0 1.5px 2px rgba(255, 255, 255, 0.95);
 }
 
@@ -1407,8 +1407,8 @@ function formatRelativeTime(isoString: string): string {
   width: 54px;
   height: 54px;
   border-radius: 9999px;
-  background: rgba(168, 131, 80, 0.1);
-  color: var(--gold-dark, #A88350);
+  background: var(--gold-soft);
+  color: var(--gold-dark, #3E444B);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1419,7 +1419,7 @@ function formatRelativeTime(isoString: string): string {
   font-size: 19px;
   font-weight: 600;
   line-height: 1.5;
-  color: var(--text-main, #2D2926);
+  color: var(--text-main, #202428);
   letter-spacing: -0.3px;
   margin-bottom: 8px;
 }
@@ -1427,7 +1427,7 @@ function formatRelativeTime(isoString: string): string {
 .overlay-sub-text {
   font-size: 13px;
   line-height: 1.6;
-  color: var(--text-muted, #79716B);
+  color: var(--text-muted, #8A919A);
   letter-spacing: -0.2px;
   margin-bottom: 20px;
 }
@@ -1449,8 +1449,8 @@ function formatRelativeTime(isoString: string): string {
 
 .overlay-action-btn:disabled,
 .snap-main-upload-btn:disabled {
-  background: #D8D2C9 !important;
-  color: #8C827A !important;
+  background: #D8DBDF !important;
+  color: #8A919A !important;
   cursor: not-allowed !important;
   box-shadow: none !important;
   transform: none !important;
@@ -1458,13 +1458,13 @@ function formatRelativeTime(isoString: string): string {
 
 .overlay-time-notice {
   font-size: 11.5px;
-  color: #8C827A;
+  color: #8A919A;
   letter-spacing: -0.2px;
 }
 
 .main-upload-time-guide {
   font-size: 12px;
-  color: #8C827A;
+  color: #8A919A;
   text-align: center;
   margin-top: 6px;
   letter-spacing: -0.2px;
@@ -1536,7 +1536,7 @@ function formatRelativeTime(isoString: string): string {
   position: relative;
   border-radius: 12px;
   overflow: hidden;
-  background: var(--bg-warm, #EFE7DA);
+  background: var(--bg-warm, #E2E4E8);
   border: 1px solid rgba(0, 0, 0, 0.04);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   cursor: default;
@@ -1581,7 +1581,7 @@ function formatRelativeTime(isoString: string): string {
   position: absolute;
   top: 8px;
   left: 8px;
-  background: linear-gradient(135deg, var(--gold-primary, #C5A059), var(--gold-dark, #A88350));
+  background: linear-gradient(135deg, var(--gold-primary, #555D66), var(--gold-dark, #3E444B));
   color: #FFFFFF;
   font-size: 10px;
   font-weight: 700;
@@ -1596,7 +1596,7 @@ function formatRelativeTime(isoString: string): string {
 .snap-card-skeleton {
   position: absolute;
   inset: 0;
-  background: #EFE7DA;
+  background: var(--bg-warm, #E2E4E8);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -49,9 +49,9 @@ defineEmits<{
 <style scoped>
 .share-footer {
   padding: 64px 24px 76px;
-  background: linear-gradient(180deg, #F4ECE1 0%, #EDE4D6 45%, #E4DAC9 100%);
-  border-top: 1px solid rgba(197, 160, 89, 0.32);
-  box-shadow: inset 0 16px 32px -12px rgba(140, 115, 85, 0.12);
+  background: linear-gradient(180deg, #ECEEF1 0%, #E2E5E9 45%, #D6DAE0 100%);
+  border-top: 1px solid rgba(138, 145, 154, 0.3);
+  box-shadow: inset 0 16px 32px -12px rgba(60, 68, 76, 0.08);
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -123,18 +123,18 @@ defineEmits<{
   backdrop-filter: blur(24px) saturate(200%);
   -webkit-backdrop-filter: blur(24px) saturate(200%);
   border: 1px solid rgba(255, 255, 255, 0.95);
-  box-shadow: 0 10px 30px rgba(45, 41, 38, 0.12),
+  box-shadow: 0 10px 30px rgba(32, 36, 40, 0.10),
               inset 0 1.5px 2px rgba(255, 255, 255, 0.95);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--gold-dark, #A88350);
+  color: var(--gold-dark, #3E444B);
   transition: all 0.25s ease;
 }
 
 .footer-docked-share-btn:hover .docked-circle-icon {
   transform: scale(1.08);
-  box-shadow: 0 12px 34px rgba(168, 131, 80, 0.22);
+  box-shadow: 0 12px 34px rgba(85, 93, 102, 0.22);
 }
 
 .footer-docked-share-btn:active .docked-circle-icon {
@@ -156,7 +156,7 @@ defineEmits<{
 }
 
 .footer-meta {
-  border-top: 1px solid rgba(224, 214, 201, 0.5);
+  border-top: 1px solid rgba(190, 196, 204, 0.6);
   padding-top: 24px;
 }
 
