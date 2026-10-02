@@ -15,7 +15,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  color: '#3E444B',
+  color: '#000000',
   speed: 1.0,
   autoplay: true,
   replayable: false,
@@ -371,7 +371,7 @@ defineExpose({
         class="fade-group our-group"
         :class="{ 'is-visible': isOurVisible }"
         transform="translate(0.000000,500.000000) scale(0.100000,-0.100000)"
-        fill="var(--ink-color, #4A3E36)"
+        fill="var(--ink-color, #000000)"
       >
         <path v-for="idx in [0, 1, 2, 3, 4, 5]" :key="idx" :d="rawSvgPaths[idx]" />
       </g>
@@ -380,7 +380,7 @@ defineExpose({
       <g
         class="wedding-group"
         :class="{ 'is-visible': isWeddingVisible }"
-        fill="var(--ink-color, #4A3E36)"
+        fill="var(--ink-color, #000000)"
       >
         <!-- (1) W 글자 그룹: 마스크는 루트 700x500 좌표계에서 동작 -->
         <g mask="url(#wMask)">
@@ -407,7 +407,7 @@ defineExpose({
         class="fade-group day-group"
         :class="{ 'is-visible': isDayVisible }"
         transform="translate(0.000000,500.000000) scale(0.100000,-0.100000)"
-        fill="var(--ink-color, #4A3E36)"
+        fill="var(--ink-color, #000000)"
       >
         <path v-for="idx in [21, 22, 23]" :key="idx" :d="rawSvgPaths[idx]" />
       </g>

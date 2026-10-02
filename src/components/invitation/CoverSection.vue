@@ -90,7 +90,7 @@ const formattedDate = computed(() => {
         <div class="calligraphy-container">
           <WeddingDayCalligraphy
             ref="calligraphyRef"
-            color="var(--gold-dark, #3E444B)"
+            color="#000000"
             :speed="1.1"
             :autoplay="true"
             :replayable="false"
