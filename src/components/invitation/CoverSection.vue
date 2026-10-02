@@ -1,23 +1,43 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { photos, weddingInfo, formatWeddingDate } from '../../services/storage'
 import { Heart } from 'lucide-vue-next'
+import WeddingDayCalligraphy from './WeddingDayCalligraphy.vue'
 
 const isCoverReady = ref(false)
+const calligraphyRef = ref<InstanceType<typeof WeddingDayCalligraphy> | null>(null)
 
-const coverPhoto = computed(() => {
+watch(isCoverReady, (ready) => {
+  if (ready) {
+    nextTick(() => {
+      setTimeout(() => {
+        calligraphyRef.value?.start()
+      }, 450)
+    })
+  }
+})
+
+const currentCoverPhoto = computed(() => {
   const visiblePhotos = photos.value.filter(p => !p.isHidden)
   const found = visiblePhotos.find(p => p.isCover)
-  return found ? found.url : (visiblePhotos[0]?.url || '')
+  return found || visiblePhotos[0] || null
+})
+
+const coverPhotoUrl = computed(() => {
+  return currentCoverPhoto.value?.url || ''
+})
+
+const coverObjectPosition = computed(() => {
+  return currentCoverPhoto.value?.objectPosition || 'center center'
 })
 
 const preloadCover = () => {
-  if (!coverPhoto.value) {
+  if (!coverPhotoUrl.value) {
     isCoverReady.value = true
     return
   }
   const img = new Image()
-  img.src = coverPhoto.value
+  img.src = coverPhotoUrl.value
   if (img.complete) {
     isCoverReady.value = true
   } else {
@@ -34,7 +54,7 @@ onMounted(() => {
   preloadCover()
 })
 
-watch(coverPhoto, () => {
+watch(coverPhotoUrl, () => {
   isCoverReady.value = false
   preloadCover()
 })
@@ -65,19 +85,28 @@ const formattedDate = computed(() => {
 
     <!-- 2. Main Cover Section: Rendered only after image is 100% loaded -->
     <header v-else class="cover-container" key="content">
-      <!-- Top Tagline -->
+      <!-- Top Tagline & Calligraphy -->
       <div class="header-tagline">
-        <span class="sub-label">WEDDING INVITATION</span>
+        <div class="calligraphy-container">
+          <WeddingDayCalligraphy
+            ref="calligraphyRef"
+            color="#000000"
+            :speed="1.1"
+            :autoplay="true"
+            :replayable="false"
+          />
+        </div>
       </div>
 
       <!-- Main Photo Frame with elegant shadow & border -->
       <div class="photo-frame-wrapper">
         <div class="photo-frame">
           <img
-            v-if="coverPhoto"
-            :src="coverPhoto"
+            v-if="coverPhotoUrl"
+            :src="coverPhotoUrl"
             alt="웨딩 대표 사진"
             class="cover-image"
+            :style="{ objectPosition: coverObjectPosition }"
             loading="eager"
             fetchpriority="high"
             decoding="async"
@@ -113,39 +142,30 @@ const formattedDate = computed(() => {
   min-height: 100vh;
   min-height: 100dvh;
   justify-content: center;
-  padding: 56px 20px 48px;
+  padding: 40px 20px 32px;
   text-align: center;
   position: relative;
-  background-color: #FAF7F2;
-  background-image: url('../../assets/images/paper-texture.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background-color: var(--bg-ivory);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
+  gap: 40px;
   box-sizing: border-box;
   width: 100%;
 }
 
 .header-tagline {
-  margin-bottom: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 0px;
 }
 
-.sub-label {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 4px;
-  color: var(--gold-primary);
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.eng-date {
-  font-size: 14px;
-  color: var(--text-sub);
-  letter-spacing: 1px;
+.calligraphy-container {
+  width: 100%;
+  max-width: 285px;
+  margin: 0 auto;
 }
 
 .photo-frame-wrapper {
@@ -154,19 +174,19 @@ const formattedDate = computed(() => {
   align-items: center;
   justify-content: center;
   width: 100%;
-  max-width: 325px;
 }
 
 .photo-frame {
   position: relative;
-  width: 100%;
-  aspect-ratio: 4 / 5;
-  max-height: 45vh;
-  border-radius: 180px 180px 16px 16px;
+  width: 220px;
+  height: 220px;
+  aspect-ratio: 1 / 1;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vw - 48px);
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 16px 36px rgba(110, 93, 76, 0.14);
-  border: 4px solid #FFFFFF;
-  background: #EFE7DA;
+  background: var(--bg-warm);
+  flex-shrink: 0;
 }
 
 .cover-loading-screen {
@@ -177,11 +197,7 @@ const formattedDate = computed(() => {
   align-items: center;
   justify-content: center;
   padding: 40px 20px;
-  background-color: #FAF7F2;
-  background-image: url('../../assets/images/paper-texture.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background-color: var(--bg-ivory);
   width: 100%;
 }
 
@@ -193,13 +209,14 @@ const formattedDate = computed(() => {
 }
 
 .intro-monogram {
+  font-family: 'Nanum Myeongjo', serif;
   font-size: 22px;
   color: var(--gold-dark);
   letter-spacing: 2px;
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .mono-heart {
@@ -210,7 +227,7 @@ const formattedDate = computed(() => {
 .loading-ring-spinner {
   width: 36px;
   height: 36px;
-  border: 2.5px solid rgba(168, 131, 80, 0.2);
+  border: 2.5px solid rgba(85, 93, 102, 0.2);
   border-top-color: var(--gold-primary);
   border-radius: 50%;
   animation: spin 0.85s linear infinite;
@@ -250,7 +267,6 @@ const formattedDate = computed(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center 20%;
   transition: transform 0.8s ease;
 }
 
@@ -280,7 +296,8 @@ const formattedDate = computed(() => {
 }
 
 .couple-names {
-  font-size: 26px;
+  font-family: 'Nanum Myeongjo', serif;
+  font-size: 24px;
   color: var(--text-main);
   letter-spacing: 2px;
   display: flex;
@@ -296,6 +313,7 @@ const formattedDate = computed(() => {
 }
 
 .wedding-time-location {
+  font-family: 'Nanum Myeongjo', serif;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -304,7 +322,7 @@ const formattedDate = computed(() => {
 .date-text {
   font-size: 15px;
   color: var(--gold-dark);
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .venue-text {

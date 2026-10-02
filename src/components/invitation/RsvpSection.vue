@@ -22,7 +22,7 @@ const triggerConfetti = () => {
     particleCount: 80,
     spread: 60,
     origin: { y: 0.7 },
-    colors: ['#A88350', '#C7756B', '#F4EFE6', '#EBD8B8']
+    colors: ['#555D66', '#8A919A', '#CFD3D8', '#3E444B']
   })
 }
 

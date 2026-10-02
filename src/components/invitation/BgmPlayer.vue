@@ -84,7 +84,7 @@ onMounted(() => {
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(234, 227, 214, 0.8);
+  border: 1px solid rgba(220, 224, 229, 0.85);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
@@ -102,7 +102,7 @@ onMounted(() => {
 .bgm-button.is-playing {
   color: var(--gold-dark);
   border-color: var(--gold-primary);
-  box-shadow: 0 4px 16px rgba(168, 131, 80, 0.25);
+  box-shadow: 0 4px 16px rgba(85, 93, 102, 0.25);
 }
 
 .disk-icon {
