@@ -127,7 +127,7 @@ html, body {
 }
 
 .section-label {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 11px;
   letter-spacing: 3px;
   color: var(--gold-primary);
@@ -136,7 +136,7 @@ html, body {
 }
 
 .section-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 20px;
   color: var(--text-main);
   font-weight: 700;

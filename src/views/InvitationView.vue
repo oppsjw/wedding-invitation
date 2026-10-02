@@ -419,6 +419,10 @@ onUnmounted(() => {
   opacity: 1;
 }
 
+.invitation-section-wrapper:not([data-section="cover"]) :deep(.font-serif) {
+  font-family: var(--font-sans) !important;
+}
+
 .invitation-section-wrapper.theme-paper {
   background-color: var(--bg-ivory);
   background-image: url('../assets/images/paper-texture.jpg');

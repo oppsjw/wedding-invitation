@@ -185,8 +185,6 @@ const formattedDate = computed(() => {
   max-height: calc(100vw - 48px);
   border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 12px 30px rgba(32, 36, 40, 0.12);
-  border: 4px solid #FFFFFF;
   background: var(--bg-warm);
   flex-shrink: 0;
 }
@@ -211,13 +209,14 @@ const formattedDate = computed(() => {
 }
 
 .intro-monogram {
+  font-family: 'Nanum Myeongjo', serif;
   font-size: 22px;
   color: var(--gold-dark);
   letter-spacing: 2px;
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .mono-heart {
@@ -297,7 +296,8 @@ const formattedDate = computed(() => {
 }
 
 .couple-names {
-  font-size: 26px;
+  font-family: 'Nanum Myeongjo', serif;
+  font-size: 24px;
   color: var(--text-main);
   letter-spacing: 2px;
   display: flex;
@@ -313,6 +313,7 @@ const formattedDate = computed(() => {
 }
 
 .wedding-time-location {
+  font-family: 'Nanum Myeongjo', serif;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -321,7 +322,7 @@ const formattedDate = computed(() => {
 .date-text {
   font-size: 15px;
   color: var(--gold-dark);
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .venue-text {
